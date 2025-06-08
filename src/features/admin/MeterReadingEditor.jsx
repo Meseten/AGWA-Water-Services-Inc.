@@ -1,25 +1,26 @@
 import React, { useState } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebaseConfig';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { allMeterReadingsCollectionPath, profilesCollectionPath } from '../../firebase/firestorePaths';
 import { formatDate } from '../../utils/userUtils';
-import { Search, Loader2, Edit, Trash2 } from 'lucide-react';
+import { Search, Loader2, Edit, Trash2, PlusCircle, FileText } from 'lucide-react';
 import * as DataService from '../../services/dataService';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import MeterReadingEditModal from './MeterReadingEditModal';
 
-const MeterReadingEditor = ({ showNotification }) => {
+const MeterReadingEditor = ({ showNotification, userData }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [searched, setSearched] = useState(false);
 
-    // State for modals
     const [editingReading, setEditingReading] = useState(null);
+    const [isCreating, setIsCreating] = useState(false);
     const [deletingReadingId, setDeletingReadingId] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isGeneratingBill, setIsGeneratingBill] = useState(false);
 
     const handleSearch = async (e) => {
         e.preventDefault();
@@ -41,7 +42,7 @@ const MeterReadingEditor = ({ showNotification }) => {
                 return;
             }
             const userDoc = userSnapshot.docs[0];
-            await processUserReadings(userDoc);
+            await processUserReadings({ id: userDoc.id, ...userDoc.data() });
         } catch (err) {
             console.error("Error searching for user or readings:", err);
             setError('An error occurred during the search. Check Firestore rules and indexes.');
@@ -49,23 +50,32 @@ const MeterReadingEditor = ({ showNotification }) => {
         }
     };
 
-    const processUserReadings = async (userDoc) => {
-        const userId = userDoc.id;
-        const userData = userDoc.data();
+    const processUserReadings = async (userProfile) => {
         const readingsRef = collection(db, allMeterReadingsCollectionPath());
-        const readingsQuery = query(readingsRef, where("userId", "==", userId), orderBy("readingDate", "desc"));
+        const readingsQuery = query(readingsRef, where("userId", "==", userProfile.id), orderBy("readingDate", "desc"));
         const readingsSnapshot = await getDocs(readingsQuery);
         const readings = readingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setSearchResults({ user: userData, readings });
+        setSearchResults({ user: userProfile, readings });
         setIsLoading(false);
     };
 
     const handleOpenEditModal = (reading) => {
+        setIsCreating(false);
         setEditingReading(reading);
     };
 
-    const handleCloseEditModal = () => {
+    const handleOpenCreateModal = () => {
+        if (!searchResults?.user) {
+            showNotification("Please search for a user first before creating a reading.", "warning");
+            return;
+        }
         setEditingReading(null);
+        setIsCreating(true);
+    };
+
+    const handleCloseModal = () => {
+        setEditingReading(null);
+        setIsCreating(false);
     };
 
     const handleSaveReading = async (readingId, updatedData) => {
@@ -73,16 +83,48 @@ const MeterReadingEditor = ({ showNotification }) => {
         const result = await DataService.updateMeterReading(db, readingId, updatedData);
         if (result.success) {
             showNotification('Meter reading updated successfully!', 'success');
-            // Refresh the data locally
-            setSearchResults(prev => ({
-                ...prev,
-                readings: prev.readings.map(r => r.id === readingId ? { ...r, ...updatedData, readingDate: new Date(updatedData.readingDate) } : r)
-            }));
-            handleCloseEditModal();
+            await processUserReadings(searchResults.user);
+            handleCloseModal();
         } else {
             showNotification(result.error || 'Failed to update reading.', 'error');
         }
         setIsSaving(false);
+    };
+    
+    const handleCreateReading = async (_, readingData) => {
+        setIsSaving(true);
+        const dataForCreation = {
+            ...readingData,
+            userId: searchResults.user.id,
+            accountNumber: searchResults.user.accountNumber,
+            meterSerialNumber: searchResults.user.meterSerialNumber || 'N/A',
+            readBy: userData.displayName || 'Admin',
+            readerId: userData.uid,
+        };
+        const result = await DataService.addMeterReading(db, dataForCreation);
+        if (result.success) {
+            showNotification('New meter reading created successfully!', 'success');
+            await processUserReadings(searchResults.user);
+            handleCloseModal();
+        } else {
+            showNotification(result.error || 'Failed to create reading.', 'error');
+        }
+        setIsSaving(false);
+    };
+
+    const handleGenerateBill = async () => {
+        if (!searchResults?.user) {
+            showNotification("Please search for a user first.", "error");
+            return;
+        }
+        setIsGeneratingBill(true);
+        const result = await DataService.generateBillForUser(db, searchResults.user.id, searchResults.user);
+        if (result.success) {
+            showNotification(result.message, "success");
+        } else {
+            showNotification(result.error, "error");
+        }
+        setIsGeneratingBill(false);
     };
 
     const handleOpenDeleteModal = (readingId) => {
@@ -95,10 +137,7 @@ const MeterReadingEditor = ({ showNotification }) => {
         const result = await DataService.deleteMeterReading(db, deletingReadingId);
         if (result.success) {
             showNotification('Meter reading deleted successfully!', 'success');
-            setSearchResults(prev => ({
-                ...prev,
-                readings: prev.readings.filter(r => r.id !== deletingReadingId)
-            }));
+            await processUserReadings(searchResults.user);
         } else {
             showNotification(result.error || 'Failed to delete reading.', 'error');
         }
@@ -108,7 +147,7 @@ const MeterReadingEditor = ({ showNotification }) => {
 
     return (
         <div className="p-4 sm:p-6 bg-white rounded-xl shadow-xl">
-            <h1 className="text-2xl font-bold mb-4">Meter Reading Management</h1>
+            <h1 className="text-2xl font-bold mb-4">Meter Reading & Billing</h1>
             <form onSubmit={handleSearch} className="mb-6 flex flex-col sm:flex-row gap-2 items-center bg-gray-50 p-4 rounded-lg shadow-sm">
                 <input
                     type="text"
@@ -126,13 +165,25 @@ const MeterReadingEditor = ({ showNotification }) => {
             {error && <p className="text-red-500 text-center mb-4">{error}</p>}
             {isLoading && <LoadingSpinner message="Fetching data..." />}
 
-            {!isLoading && searched && !searchResults?.readings?.length && (
-                <p className="text-center text-gray-500 mt-8">{error || 'No readings found for this user.'}</p>
-            )}
-
             {searchResults?.user && (
                 <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md mt-6 border border-gray-200">
-                    <h2 className="text-xl font-semibold mb-4">Readings for {searchResults.user.displayName} ({searchResults.user.accountNumber})</h2>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                        <h2 className="text-xl font-semibold">Data for {searchResults.user.displayName} ({searchResults.user.accountNumber})</h2>
+                        <div className="flex gap-2 flex-wrap">
+                             <button onClick={handleOpenCreateModal} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center text-sm">
+                                <PlusCircle size={16} className="mr-2"/> Create Reading
+                            </button>
+                            <button 
+                                onClick={handleGenerateBill} 
+                                className="bg-cyan-600 text-white px-4 py-2 rounded-md hover:bg-cyan-700 flex items-center text-sm disabled:bg-gray-400"
+                                disabled={isGeneratingBill || searchResults.readings.length < 2}
+                                title={searchResults.readings.length < 2 ? "At least 2 readings are required to generate a bill" : "Generate bill from latest reading"}
+                            >
+                                {isGeneratingBill ? <Loader2 size={16} className="animate-spin mr-2"/> : <FileText size={16} className="mr-2"/>}
+                                {isGeneratingBill ? 'Generating...' : 'Generate Bill'}
+                            </button>
+                        </div>
+                    </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gray-50">
@@ -159,17 +210,19 @@ const MeterReadingEditor = ({ showNotification }) => {
                                 ))}
                             </tbody>
                         </table>
+                        {searchResults.readings?.length < 2 && <p className="text-xs text-center text-yellow-600 bg-yellow-50 p-2 mt-2 rounded-md">Note: At least two readings are needed before a bill can be generated.</p>}
                     </div>
                 </div>
             )}
             
-            {editingReading && (
+            {(editingReading || isCreating) && (
                 <MeterReadingEditModal 
-                    isOpen={!!editingReading}
-                    onClose={handleCloseEditModal}
-                    onSave={handleSaveReading}
+                    isOpen={true}
+                    onClose={handleCloseModal}
+                    onSave={isCreating ? handleCreateReading : handleSaveReading}
                     reading={editingReading}
                     isSaving={isSaving}
+                    accountNumber={searchResults?.user?.accountNumber}
                 />
             )}
 

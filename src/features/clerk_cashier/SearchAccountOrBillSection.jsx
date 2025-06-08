@@ -1,23 +1,15 @@
-// src/features/clerk_cashier/SearchAccountOrBillSection.jsx
-import React, { useState } from 'react'; // Removed unused useEffect
+import React, { useState } from 'react';
 import { 
     FileSearch, UserCircle, Hash, FileText, CalendarDays, DollarSign, 
-    Info, Loader2, AlertTriangle, Search, // Added Search from previous usage
-    Mail, MapPin, CheckCircle // Added missing icons
+    Info, Loader2, AlertTriangle, Search,
+    Mail, MapPin, CheckCircle
 } from 'lucide-react';
-import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'; // Assuming .jsx
-import * as DataService from '../../services/dataService.js'; // .js is fine
-import { formatDate } from '../../utils/userUtils.js'; // .js is fine
-import InvoiceView from '../../components/ui/InvoiceView.jsx'; // Assuming .jsx
+import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
+import * as DataService from '../../services/dataService.js';
+import { formatDate } from '../../utils/userUtils.js';
+import InvoiceView from '../../components/ui/InvoiceView.jsx';
 
-/**
- * SearchAccountOrBillSection for clerks to look up customer accounts or specific bills.
- * @param {object} props - Component props from DashboardLayout.
- * @param {object} props.db - Firestore instance.
- * @param {function} props.showNotification - Function to display notifications.
- * @param {function} props.billingService - The calculateBillDetails function (passed to InvoiceView).
- */
-const SearchAccountOrBillSection = ({ db, showNotification, billingService: calculateBillDetails }) => { // Removed unused clerkData
+const SearchAccountOrBillSection = ({ db, showNotification, billingService: calculateBillDetails }) => {
     const [searchType, setSearchType] = useState('account');
     const [searchTerm, setSearchTerm] = useState('');
     
@@ -30,7 +22,7 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
     const [viewingInvoice, setViewingInvoice] = useState(null);
     const [invoiceUserData, setInvoiceUserData] = useState(null);
 
-    const commonInputClass = "w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150 text-sm placeholder-gray-400";
+    const commonInputClass = "w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition-150 text-sm placeholder-gray-400";
 
     const handleSearch = async (e) => {
         e.preventDefault();
@@ -47,48 +39,34 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
 
         try {
             if (searchType === 'account') {
-                const usersResult = await DataService.getAllUsersProfiles(db);
-                if (usersResult.success) {
-                    const searchLower = searchTerm.toLowerCase();
-                    const foundUser = usersResult.data.find(
-                        user => user.accountNumber?.toLowerCase() === searchLower ||
-                                user.email?.toLowerCase() === searchLower ||
-                                user.displayName?.toLowerCase().includes(searchLower)
-                    );
-                    if (foundUser) {
-                        setSearchedData(foundUser);
-                        const billsResult = await DataService.getBillsForUser(db, foundUser.id);
-                        if (billsResult.success) {
-                            setUserBills(billsResult.data.sort((a, b) => new Date(b.billDate || 0) - new Date(a.billDate || 0)));
-                        } else {
-                            showNotification("Could not fetch bills for the user.", "warning");
-                        }
+                const usersResult = await DataService.searchUserProfiles(db, searchTerm.trim());
+                if (usersResult.success && usersResult.data.length > 0) {
+                    const foundUser = usersResult.data[0];
+                    setSearchedData(foundUser);
+                    const billsResult = await DataService.getBillsForUser(db, foundUser.id);
+                    if (billsResult.success) {
+                        setUserBills(billsResult.data.sort((a, b) => (b.billDate?.toDate() || 0) - (a.billDate?.toDate() || 0)));
                     } else {
-                        setError(`No account found matching "${searchTerm}".`);
-                        showNotification("Account not found.", "info");
+                        showNotification("Could not fetch bills for the user.", "warning");
                     }
+                } else if (usersResult.success) {
+                    setError(`No account found matching "${searchTerm}".`);
                 } else {
                     setError(usersResult.error || "Failed to search accounts.");
                 }
-            } else { // searchType === 'bill'
-                const billsResult = await DataService.getDocuments(db, DataService.allBillsCollectionPath());
-                if (billsResult.success) {
-                    const searchLower = searchTerm.toLowerCase();
-                    const foundBill = billsResult.data.find(
-                        bill => bill.invoiceNumber?.toLowerCase() === searchLower || bill.id?.toLowerCase() === searchLower
-                    );
-                    if (foundBill) {
-                        setSearchedData(foundBill);
-                        if (foundBill.userId) {
-                            const userProfileResult = await DataService.getUserProfile(db, foundBill.userId);
-                            if (userProfileResult.success) {
-                                setInvoiceUserData(userProfileResult.data);
-                            }
+            } else { 
+                const billsResult = await DataService.getDocuments(db, DataService.allBillsCollectionPath(), [where("id", "==", searchTerm.trim())]);
+                if (billsResult.success && billsResult.data.length > 0) {
+                    const foundBill = billsResult.data[0];
+                    setSearchedData(foundBill);
+                    if (foundBill.userId) {
+                        const userProfileResult = await DataService.getUserProfile(db, foundBill.userId);
+                        if (userProfileResult.success) {
+                            setInvoiceUserData(userProfileResult.data);
                         }
-                    } else {
-                        setError(`No bill found matching invoice/bill ID "${searchTerm}".`);
-                        showNotification("Bill not found.", "info");
                     }
+                } else if (billsResult.success) {
+                     setError(`No bill found matching invoice/bill ID "${searchTerm}".`);
                 } else {
                      setError(billsResult.error || "Failed to search bills.");
                 }
@@ -96,7 +74,6 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
         } catch (err) {
             setError("An error occurred during the search.");
             showNotification("An error occurred during search.", "error");
-            console.error("Search Error (Clerk):", err);
         }
         setIsLoading(false);
     };
@@ -110,7 +87,7 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
         <div className="flex items-start py-1.5">
             {Icon && <Icon size={16} className="mr-2.5 text-blue-500 flex-shrink-0 mt-0.5" />}
             <span className="text-xs font-medium text-gray-500 w-32 sm:w-40">{label}:</span>
-            <span className={`text-sm ${valueClass} flex-1`}>{value || 'N/A'}</span>
+            <span className={`text-sm ${valueClass} flex-1 break-words`}>{value || 'N/A'}</span>
         </div>
     );
 

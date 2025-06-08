@@ -1,20 +1,9 @@
-// src/components/ui/InvoiceView.jsx
 import React from 'react';
 import Modal from './Modal';
-import { Printer, X, Info, Download } from 'lucide-react';
+import { Printer, X, Info, Download, FileText } from 'lucide-react';
 import { formatDate } from '../../utils/userUtils';
+import Barcode from './Barcode.jsx';
 
-/**
- * InvoiceView component to display detailed bill information in a large, near-fullscreen modal.
- *
- * @param {object} props - Component props.
- * @param {boolean} props.isOpen - Whether the modal is open.
- * @param {function} props.onClose - Function to close the modal.
- * @param {object} props.bill - The bill object to display. Should include pre-calculated charges if possible.
- * @param {object} props.userData - The user data associated with the bill (name, address, etc.).
- * @param {function} props.calculateBillDetails - Function to calculate bill charges if not pre-calculated on the bill object.
- * @param {function} [props.showNotification] - Optional function to display notifications.
- */
 const InvoiceView = ({
     isOpen,
     onClose,
@@ -32,6 +21,16 @@ const InvoiceView = ({
     );
 
     const totalAmountDue = (charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0)).toFixed(2);
+    
+    const billDateObj = bill.billDate?.toDate ? bill.billDate.toDate() : null;
+    const formattedDateForInvoiceNum = billDateObj ? `${billDateObj.getFullYear()}${String(billDateObj.getMonth() + 1).padStart(2, '0')}${String(billDateObj.getDate()).padStart(2, '0')}` : Date.now().toString().slice(-6);
+    const invoiceNumber = bill.invoiceNumber || `AGWA-${bill.id?.slice(0,4).toUpperCase()}-${formattedDateForInvoiceNum}`;
+    
+    const formatAddressToString = (addressObj) => {
+        if (!addressObj || typeof addressObj !== 'object') return addressObj || 'N/A';
+        const parts = [addressObj.street, addressObj.barangay, addressObj.district, "Quezon City"];
+        return parts.filter(p => p && p.trim()).join(', ');
+    };
 
     const handlePrint = () => {
         const printableContent = document.getElementById('invoice-content-to-print-modal-fullscreen');
@@ -42,8 +41,9 @@ const InvoiceView = ({
             printWindow.document.write(`
                 <style>
                     body { font-family: 'Inter', sans-serif; margin: 0; padding: 15px; font-size: 9.5pt; line-height: 1.45; color: #2d3748; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                    .invoice-container-print { max-width: 820px; margin: auto; padding: 20px; background-color: #fff; }
-                    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+                    .invoice-container-print { max-width: 820px; margin: auto; padding: 20px; background-color: #fff; position: relative; }
+                    .paid-stamp { pointer-events: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 6rem; font-weight: bold; color: rgba(34, 197, 94, 0.2); z-index: 10; letter-spacing: 0.1em; border: 8px solid rgba(34, 197, 94, 0.2); padding: 0.5em 1em; border-radius: 10px; text-transform: uppercase; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; position: relative; z-index: 1; }
                     td, th { border: 1px solid #e2e8f0; padding: 5px 7px; text-align: left; font-size: 9pt; vertical-align: top; }
                     th { background-color: #f7fafc; font-weight: 600; color: #4a5568; }
                     .header-logo-print { font-size: 24pt; font-weight: bold; color: #2b6cb0; margin-bottom: 0px; }
@@ -56,13 +56,13 @@ const InvoiceView = ({
                     hr.dashed-print { border: none; border-top: 1px dashed #a0aec0; margin: 10px 0; }
                     .footer-notes-print { font-size: 8pt; text-align: center; margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #4a5568; }
                     .payment-stub-print { margin-top: 20px; padding: 12px; border: 1px dashed #718096; background-color: #f8f9fa; }
-                    .payment-stub-print h5 { font-size: 10pt; font-weight: bold; text-align: center; margin-bottom: 6px; color: #2d3748; }
                     .no-print-in-iframe { display: none !important; }
                     @media print {
                         body { margin: 0; font-size: 9.5pt; background-color: #fff; }
                         .no-print-in-iframe { display: none !important; }
                         .invoice-container-print { border: none; box-shadow: none; padding: 0;}
-                         table td, table th {font-size: 8.5pt;} /* Slightly smaller for print */
+                        .paid-stamp { color: rgba(34, 197, 94, 0.15) !important; border-color: rgba(34, 197, 94, 0.15) !important; }
+                         table td, table th {font-size: 8.5pt;}
                     }
                 </style>
             `);
@@ -75,7 +75,6 @@ const InvoiceView = ({
             }, 700);
         } else {
             if (showNotification) showNotification("Invoice content element not found for printing.", "error");
-            else console.error("Invoice content element not found for printing.");
         }
     };
 
@@ -95,12 +94,11 @@ const InvoiceView = ({
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="" size="full" modalDialogClassName="sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl w-[95vw] h-[95vh]" contentClassName="p-0">
-            {/* Custom Header for Invoice View within Modal */}
             <div className="flex justify-between items-center p-3 sm:p-4 border-b border-gray-200 bg-slate-50 rounded-t-xl sticky top-0 z-20">
                 <div className="flex items-center">
                     <FileText size={22} className="mr-2.5 text-blue-600" />
-                    <h3 className="text-md sm:text-lg font-semibold text-slate-800 truncate" title={bill.invoiceNumber || `Bill for ${bill.monthYear}`}>
-                        Invoice: {bill.invoiceNumber || `${bill.monthYear}`}
+                    <h3 className="text-md sm:text-lg font-semibold text-slate-800 truncate" title={invoiceNumber}>
+                        Invoice: {invoiceNumber}
                     </h3>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -121,115 +119,117 @@ const InvoiceView = ({
                 </div>
             </div>
 
-            {/* Scrollable Invoice Content Wrapper */}
-            <div className="overflow-y-auto flex-grow p-1"> {/* Added p-1 to allow shadow of content to show */}
-                <div id="invoice-content-to-print-modal-fullscreen" className="p-3 sm:p-5 font-sans text-gray-700 text-xs sm:text-sm bg-white shadow-lg rounded-lg max-w-4xl mx-auto my-2">
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-5 pb-4 border-b-2 border-blue-700">
-                        <div>
-                            <div className="header-logo-print text-3xl font-bold text-blue-700">AGWA</div>
-                            <div className="header-tagline-print text-xs text-blue-600 italic">Ensuring Clarity, Sustaining Life.</div>
+            <div className="overflow-y-auto flex-grow p-1">
+                <div id="invoice-content-to-print-modal-fullscreen" className="p-3 sm:p-5 font-sans text-gray-700 text-xs sm:text-sm bg-white shadow-lg rounded-lg max-w-4xl mx-auto my-2 relative">
+                    {bill.status?.toLowerCase() === 'paid' && <div className="paid-stamp">PAID</div>}
+                    <div className="relative z-0">
+                        <div className="flex justify-between items-start mb-5 pb-4 border-b-2 border-blue-700">
+                            <div>
+                                <div className="header-logo-print text-3xl font-bold text-blue-700">AGWA</div>
+                                <div className="header-tagline-print text-xs text-blue-600 italic">Ensuring Clarity, Sustaining Life.</div>
+                            </div>
+                            <div className="text-right text-xs">
+                                <div className="font-semibold">AGWA Water Services, Inc.</div>
+                                <div>123 Aqua Drive, Hydro Business Park</div>
+                                <div>Quezon City, Metro Manila, Philippines 1101</div>
+                                <div>VAT Reg. TIN: 000-123-456-789</div>
+                                <div className="no-print-in-iframe">Machine Serial No.: AGWAMSN001</div>
+                            </div>
                         </div>
-                        <div className="text-right text-xs">
-                            <div className="font-semibold">AGWA Water Services, Inc.</div>
-                            <div>123 Aqua Drive, Hydro Business Park</div>
-                            <div>Quezon City, Metro Manila, Philippines 1101</div>
-                            <div>VAT Reg. TIN: 000-123-456-789</div>
-                            <div className="no-print-in-iframe">Machine Serial No.: AGWAMSN001</div>
+                        <div className="invoice-title-print text-2xl font-bold text-center mb-2 text-gray-800">STATEMENT OF ACCOUNT</div>
+                        <div className="text-center text-sm mb-5">Invoice No.: {invoiceNumber}</div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 mb-5 text-xs">
+                            <div className="border border-gray-200 p-3.5 rounded-lg bg-slate-50/60 shadow-sm">
+                                <h5 className="font-semibold text-slate-600 mb-2 text-sm border-b pb-1.5">SERVICE INFORMATION</h5>
+                                <InfoRow label="Contract Acct No." value={userData.accountNumber} valueClass="font-bold text-slate-900" />
+                                <InfoRow label="Account Name" value={userData.displayName || userData.email} valueClass="font-bold text-slate-900" />
+                                <InfoRow label="Service Address" value={formatAddressToString(userData.serviceAddress)} />
+                                <InfoRow label="Meter Serial No." value={userData.meterSerialNumber || 'N/A'} />
+                                <InfoRow label="Rate Class" value={userData.serviceType || "Residential"} />
+                            </div>
+                            <div className="border border-gray-200 p-3.5 rounded-lg bg-slate-50/60 mt-3 md:mt-0 shadow-sm">
+                                <h5 className="font-semibold text-slate-600 mb-2 text-sm border-b pb-1.5">BILLING SUMMARY</h5>
+                                <InfoRow label="Bill Date" value={formatDate(bill.billDate, { year: 'numeric', month: 'long', day: 'numeric' }) || 'N/A'} />
+                                <InfoRow label="Billing Period" value={bill.billingPeriod || bill.monthYear} />
+                                <InfoRow label="Current Reading" value={`${bill.currentReading ?? 'N/A'} m³`} />
+                                <InfoRow label="Previous Reading" value={`${bill.prevReading ?? 'N/A'} m³`} />
+                                <InfoRow label="Consumption" value={`${charges.consumption ?? 'N/A'} m³`} valueClass="font-bold text-slate-900" />
+                            </div>
                         </div>
-                    </div>
-                    <div className="invoice-title-print text-2xl font-bold text-center mb-2 text-gray-800">STATEMENT OF ACCOUNT</div>
-                    <div className="text-center text-sm mb-5">Invoice No.: {bill.invoiceNumber || `AGWA-${bill.id?.slice(0,4).toUpperCase()}-${bill.billDate?.replace(/-/g,'') || Date.now().toString().slice(-6)}`}</div>
+                        <hr className="my-4 border-gray-300 dashed-print"/>
 
-                    {/* Service Information & Summary Table */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 mb-5 text-xs">
-                        <div className="border border-gray-200 p-3.5 rounded-lg bg-slate-50/60 shadow-sm">
-                            <h5 className="font-semibold text-slate-600 mb-2 text-sm border-b pb-1.5">SERVICE INFORMATION</h5>
-                            <InfoRow label="Contract Acct No." value={userData.accountNumber} valueClass="font-bold text-slate-900" />
-                            <InfoRow label="Account Name" value={userData.displayName || userData.email} valueClass="font-bold text-slate-900" />
-                            <InfoRow label="Service Address" value={userData.serviceAddress || "Not Specified"} />
-                            <InfoRow label="Meter Serial No." value={userData.meterSerialNumber || 'N/A'} />
-                            <InfoRow label="Rate Class" value={userData.serviceType || "Residential"} />
+                        <div className="section-title-print text-sm font-semibold text-slate-700 mb-1.5">CHARGES BREAKDOWN</div>
+                        <table className="w-full text-xs mb-4">
+                            <thead className="bg-slate-100">
+                                <tr>
+                                    <th className="py-2 px-2.5 text-left">Description</th>
+                                    <th className="py-2 px-2.5 text-right">Amount (PHP)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <DetailRow label="Basic Charge" value={charges.basicCharge?.toFixed(2)} />
+                                <DetailRow label="Foreign Currency Differential Adj. (FCDA)" value={charges.fcda?.toFixed(2)} />
+                                <DetailRow label="Water Charge (Basic + FCDA)" value={charges.waterCharge?.toFixed(2)} isBold={true}/>
+                                <DetailRow label="Environmental Charge (EC)" value={charges.environmentalCharge?.toFixed(2)} />
+                                <DetailRow label="Sewerage Charge (SC)" value={charges.sewerageCharge?.toFixed(2)} />
+                                <DetailRow label="Maintenance Service Charge" value={charges.maintenanceServiceCharge?.toFixed(2)} />
+                                {bill.seniorCitizenDiscount > 0 && <DetailRow label="Senior Citizen Discount" value={`(${parseFloat(bill.seniorCitizenDiscount).toFixed(2)})`} valueClass="text-green-600"/>}
+                                <DetailRow label="SUB-TOTAL (Water & Other Charges)" value={charges.subTotalBeforeTaxes?.toFixed(2)} isTotal={true}/>
+                                <DetailRow label="Government Taxes (Local Franchise Tax)" value={charges.governmentTaxes?.toFixed(2)} />
+                                <DetailRow label="VATable Sales" value={charges.vatableSales?.toFixed(2)} isTotal={true}/>
+                                <DetailRow label="VAT (12%)" value={charges.vat?.toFixed(2)} />
+                            </tbody>
+                        </table>
+                        <hr className="my-4 border-gray-300 dashed-print"/>
+                        
+                        <div className="text-xs space-y-1.5 mt-1">
+                            <InfoRow label="Total Current Charges" value={`PHP ${charges.totalCalculatedCharges?.toFixed(2)}`} valueClass="font-bold text-slate-900 text-sm" />
+                            <InfoRow label="Previous Unpaid Amount" value={`PHP ${(bill.previousUnpaidAmount || 0).toFixed(2)}`} valueClass={`font-semibold text-sm ${(bill.previousUnpaidAmount || 0) > 0 ? "text-red-600" : "text-slate-800"}`} />
+                            <div className="flex justify-between items-center py-2.5 text-lg sm:text-xl border-t-2 border-b-2 border-black my-2.5 px-1">
+                                <span className="font-bold text-slate-900">TOTAL AMOUNT DUE</span>
+                                <span className="font-bold text-red-600 total-due-print">PHP {totalAmountDue}</span>
+                            </div>
+                            <InfoRow label="Payment Due Date" value={formatDate(bill.dueDate, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) || 'N/A'} valueClass="font-bold text-red-700 text-sm" />
                         </div>
-                         <div className="border border-gray-200 p-3.5 rounded-lg bg-slate-50/60 mt-3 md:mt-0 shadow-sm">
-                            <h5 className="font-semibold text-slate-600 mb-2 text-sm border-b pb-1.5">BILLING SUMMARY</h5>
-                            <InfoRow label="Bill Date" value={formatDate(bill.billDate, { year: 'numeric', month: 'long', day: 'numeric' }) || 'N/A'} />
-                            <InfoRow label="Billing Period" value={bill.billingPeriod || bill.monthYear} />
-                            <InfoRow label="Current Reading" value={`${bill.currentReading ?? 'N/A'} m³`} />
-                            <InfoRow label="Previous Reading" value={`${bill.prevReading ?? 'N/A'} m³`} />
-                            <InfoRow label="Consumption" value={`${charges.consumption ?? 'N/A'} m³`} valueClass="font-bold text-slate-900" />
+                        <hr className="my-4 border-gray-300 dashed-print"/>
+
+                        {bill.paymentHistory && bill.paymentHistory.length > 0 && (
+                            <>
+                                <div className="section-title-print text-sm font-semibold text-slate-700 mb-1.5 mt-4">PAYMENT HISTORY (This Bill)</div>
+                                <table className="w-full text-xs mb-4">
+                                    <thead className="bg-slate-100"><tr><th className="py-2 px-2.5">Date</th><th className="py-2 px-2.5">Ref. No.</th><th className="py-2 px-2.5 text-right">Amount Paid</th></tr></thead>
+                                    <tbody>
+                                        {bill.paymentHistory.map((p, i) => (
+                                            <tr key={i} className="hover:bg-gray-50/50">
+                                                <td className="py-1.5 px-2.5">{formatDate(p.postingDate)}</td>
+                                                <td className="py-1.5 px-2.5">{p.referenceNo}</td>
+                                                <td className="py-1.5 px-2.5 text-right">{parseFloat(p.amount).toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <hr className="my-4 border-gray-300 dashed-print"/>
+                            </>
+                        )}
+
+                        <div className="footer-notes-print text-xs text-center my-4 space-y-1 text-gray-600">
+                            <p className="no-print-in-iframe">BIR Permit No. AGWA-001-012025-000001 | Date Issued: 01/01/2025</p>
+                            <p>Please settle your account on or before the due date to avoid disconnection and late payment penalties.</p>
+                            <p className="font-semibold">CUSTOMER SERVICE: 1627-AGWA | support@agwa-waterservices.com.ph</p>
                         </div>
-                    </div>
-                    <hr className="my-4 border-gray-300 dashed-print"/>
 
-                    <div className="section-title-print text-sm font-semibold text-slate-700 mb-1.5">CHARGES BREAKDOWN</div>
-                    <table className="w-full text-xs mb-4">
-                        <thead className="bg-slate-100">
-                            <tr>
-                                <th className="py-2 px-2.5 text-left">Description</th>
-                                <th className="py-2 px-2.5 text-right">Amount (PHP)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <DetailRow label="Basic Charge" value={charges.basicCharge?.toFixed(2)} />
-                            <DetailRow label="Foreign Currency Differential Adj. (FCDA)" value={charges.fcda?.toFixed(2)} />
-                            <DetailRow label="Water Charge (Basic + FCDA)" value={charges.waterCharge?.toFixed(2)} isBold={true}/>
-                            <DetailRow label="Environmental Charge (EC)" value={charges.environmentalCharge?.toFixed(2)} />
-                            <DetailRow label="Sewerage Charge (SC)" value={charges.sewerageCharge?.toFixed(2)} />
-                            <DetailRow label="Maintenance Service Charge" value={charges.maintenanceServiceCharge?.toFixed(2)} />
-                            {bill.seniorCitizenDiscount > 0 && <DetailRow label="Senior Citizen Discount" value={`(${parseFloat(bill.seniorCitizenDiscount).toFixed(2)})`} valueClass="text-green-600"/>}
-                            <DetailRow label="SUB-TOTAL (Water & Other Charges)" value={charges.subTotalBeforeTaxes?.toFixed(2)} isTotal={true}/>
-                            <DetailRow label="Government Taxes (Local Franchise Tax)" value={charges.governmentTaxes?.toFixed(2)} />
-                            <DetailRow label="VATable Sales" value={charges.vatableSales?.toFixed(2)} isTotal={true}/>
-                            <DetailRow label="VAT (12%)" value={charges.vat?.toFixed(2)} />
-                        </tbody>
-                    </table>
-                    <hr className="my-4 border-gray-300 dashed-print"/>
-                    
-                    <div className="text-xs space-y-1.5 mt-1">
-                        <InfoRow label="Total Current Charges" value={`PHP ${charges.totalCalculatedCharges?.toFixed(2)}`} valueClass="font-bold text-slate-900 text-sm" />
-                        <InfoRow label="Previous Unpaid Amount" value={`PHP ${(bill.previousUnpaidAmount || 0).toFixed(2)}`} valueClass={`font-semibold text-sm ${(bill.previousUnpaidAmount || 0) > 0 ? "text-red-600" : "text-slate-800"}`} />
-                        <div className="flex justify-between items-center py-2.5 text-lg sm:text-xl border-t-2 border-b-2 border-black my-2.5 px-1">
-                            <span className="font-bold text-slate-900">TOTAL AMOUNT DUE</span>
-                            <span className="font-bold text-red-600 total-due-print">PHP {totalAmountDue}</span>
+                        <div className="payment-stub-print mt-5 p-3.5 border-t-2 border-dashed border-gray-500 text-xs no-print-in-iframe">
+                            <h5 className="font-bold text-center mb-2 text-slate-700 text-sm">PAYMENT STUB (For Accredited Centers)</h5>
+                            <InfoRow label="Acct. No." value={userData.accountNumber} valueClass="font-bold"/>
+                            <InfoRow label="Acct. Name" value={userData.displayName || userData.email}/>
+                            <InfoRow label="Invoice No." value={invoiceNumber}/>
+                            <InfoRow label="Amount Due" value={`PHP ${totalAmountDue}`} valueClass="font-bold text-lg"/>
+                            <InfoRow label="Due Date" value={formatDate(bill.dueDate, {month: 'long', day: 'numeric', year: 'numeric'})} valueClass="font-bold"/>
+                            <div className="py-2">
+                                <Barcode value={invoiceNumber} />
+                            </div>
                         </div>
-                        <InfoRow label="Payment Due Date" value={formatDate(bill.dueDate, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) || 'N/A'} valueClass="font-bold text-red-700 text-sm" />
-                    </div>
-                    <hr className="my-4 border-gray-300 dashed-print"/>
-
-                    {bill.paymentHistory && bill.paymentHistory.length > 0 && (
-                        <>
-                            <div className="section-title-print text-sm font-semibold text-slate-700 mb-1.5 mt-4">PAYMENT HISTORY (This Bill)</div>
-                            <table className="w-full text-xs mb-4">
-                                 <thead className="bg-slate-100"><tr><th className="py-2 px-2.5">Date</th><th className="py-2 px-2.5">Ref. No.</th><th className="py-2 px-2.5 text-right">Amount Paid</th></tr></thead>
-                                 <tbody>
-                                    {bill.paymentHistory.map((p, i) => (
-                                        <tr key={i} className="hover:bg-gray-50/50">
-                                            <td className="py-1.5 px-2.5">{formatDate(p.postingDate)}</td>
-                                            <td className="py-1.5 px-2.5">{p.referenceNo}</td>
-                                            <td className="py-1.5 px-2.5 text-right">{parseFloat(p.amount).toFixed(2)}</td>
-                                        </tr>
-                                    ))}
-                                 </tbody>
-                            </table>
-                            <hr className="my-4 border-gray-300 dashed-print"/>
-                        </>
-                    )}
-
-                    <div className="footer-notes-print text-xs text-center my-4 space-y-1 text-gray-600">
-                        <p className="no-print-in-iframe">BIR Permit No. AGWA-001-012025-000001 | Date Issued: 01/01/2025</p>
-                        <p>Please settle your account on or before the due date to avoid disconnection and late payment penalties.</p>
-                        <p className="font-semibold">CUSTOMER SERVICE: 1627-AGWA | support@agwa-waterservices.com.ph</p>
-                    </div>
-
-                    <div className="payment-stub-print mt-5 p-3.5 border-t-2 border-dashed border-gray-500 text-xs no-print-in-iframe">
-                        <h5 className="font-bold text-center mb-2 text-slate-700 text-sm">PAYMENT STUB (For Accredited Centers)</h5>
-                        <InfoRow label="Acct. No." value={userData.accountNumber} valueClass="font-bold"/>
-                        <InfoRow label="Acct. Name" value={userData.displayName || userData.email}/>
-                        <InfoRow label="Invoice No." value={bill.invoiceNumber || bill.id}/>
-                        <InfoRow label="Amount Due" value={`PHP ${totalAmountDue}`} valueClass="font-bold text-lg"/>
-                        <InfoRow label="Due Date" value={formatDate(bill.dueDate, {month: 'long', day: 'numeric', year: 'numeric'})} valueClass="font-bold"/>
-                        <div className="h-12 bg-gray-200 mt-2.5 flex items-center justify-center text-gray-400 text-sm rounded-sm">BARCODE SIMULATION AREA</div>
                     </div>
                 </div>
             </div>
@@ -238,4 +238,3 @@ const InvoiceView = ({
 };
 
 export default InvoiceView;
-

@@ -1,12 +1,10 @@
-// src/features/meter_reader/MeterReaderDashboardMain.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, Map, ClipboardEdit, Search, UserCircle, AlertTriangle, CheckCircle, ListFilter, RotateCcw, Loader2, Info } from "lucide-react";
-import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx"; // Corrected Path to actual filename
+import { LayoutDashboard, Map, ClipboardEdit, Search, AlertTriangle, CheckCircle, ListFilter, RotateCcw, Loader2, Info } from "lucide-react";
+import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
 import * as DataService from "../../services/dataService.js";
 
 const MeterReaderDashboardMain = ({ userData, db, showNotification, setActiveSection }) => {
-    // ... component logic remains the same
     const [dashboardStats, setDashboardStats] = useState({
         assignedRoutesCount: 0,
         totalAccountsInRoutes: 0,
@@ -57,7 +55,7 @@ const MeterReaderDashboardMain = ({ userData, db, showNotification, setActiveSec
                 showNotification("Some dashboard statistics could not be loaded.", "warning");
             }
 
-        } catch  {
+        } catch(e) {
             const fetchErr = "Could not load meter reader dashboard statistics. Please try refreshing.";
             setError(fetchErr);
             showNotification(fetchErr, "error");
@@ -73,7 +71,7 @@ const MeterReaderDashboardMain = ({ userData, db, showNotification, setActiveSec
 
     const quickActions = [
         { title: "View Assigned Routes", icon: Map, section: "assignedRoutes", description: "Check your daily routes and assigned accounts for reading.", color: "blue" },
-        { title: "Manual Reading Entry", icon: ClipboardEdit, section: "manualSubmitReading", description: "Submit a reading for an account not on your immediate list.", color: "green" },
+        { title: "Manual Reading Entry", icon: ClipboardEdit, section: "searchAndSubmitReading", description: "Submit a reading for an account not on your immediate list.", color: "green" },
         { title: "Search Customer Info", icon: Search, section: "searchCustomerMeterReader", description: "Look up customer or meter details for verification.", color: "teal" },
         { title: "Report Field Issue", icon: AlertTriangle, section: "reportIssue", description: "Log issues like meter damage, leaks, or access problems.", color: "orange" },
     ];

@@ -1,4 +1,3 @@
-// src/components/core/NotFound.jsx
 import React from 'react';
 import { Compass, Home } from 'lucide-react';
 

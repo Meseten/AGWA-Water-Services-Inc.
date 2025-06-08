@@ -15,6 +15,8 @@ import SystemSettingsSection from '../../features/admin/SystemSettingsSection.js
 import AnnouncementManager from '../../features/admin/AnnouncementManager.jsx';
 import StatisticsDashboard from '../../features/admin/StatisticsDashboard.jsx';
 import MeterReadingEditor from '../../features/admin/MeterReadingEditor.jsx';
+import RouteManagementSection from '../../features/admin/RouteManagementSection.jsx';
+import BatchBillingSection from '../../features/admin/BatchBillingSection.jsx';
 import MeterReaderDashboardMain from '../../features/meter_reader/MeterReaderDashboardMain.jsx';
 import AssignedRoutesSection from '../../features/meter_reader/AssignedRoutesSection.jsx';
 import MeterReadingForm from '../../features/meter_reader/MeterReadingForm.jsx';
@@ -24,6 +26,8 @@ import WalkInPaymentSection from '../../features/clerk_cashier/WalkInPaymentSect
 import SearchAccountOrBillSection from '../../features/clerk_cashier/SearchAccountOrBillSection.jsx';
 import MyTicketsSection from '../../features/customer/MyTicketsSection.jsx';
 import NotFound from '../core/NotFound.jsx';
+import ChatbotModal from '../ui/ChatbotModal.jsx';
+import { MessageSquare as ChatIcon } from 'lucide-react';
 import * as billingService from '../../services/billingService.js';
 import * as userUtils from '../../utils/userUtils.js';
 import { onSnapshot, doc } from 'firebase/firestore';
@@ -32,6 +36,7 @@ import { systemSettingsDocumentPath } from '../../firebase/firestorePaths.js';
 const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotification, auth, db }) => {
     const [activeSection, setActiveSection] = useState('mainDashboard');
     const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
+    const [isChatbotOpen, setIsChatbotOpen] = useState(false);
     const [banner, setBanner] = useState(null);
 
     useEffect(() => {
@@ -62,10 +67,11 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
         { name: 'My Profile', iconName: 'UserCog', section: 'myProfile', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'View Announcements', iconName: 'Megaphone', section: 'viewAnnouncements', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'My Bills & Payments', iconName: 'FileText', section: 'myBills', roles: ['customer'] },
-        { name: 'My Support Tickets', iconName: 'MessageSquare', section: 'myTickets', roles: ['customer'] },
-        // DEFINITIVE FIX: Added clerk_cashier and meter_reader roles to "Report an Issue"
+        { name: 'My Support Tickets', iconName: 'MessageSquare', section: 'myTickets', roles: ['customer', 'clerk_cashier', 'meter_reader'] },
         { name: 'Report an Issue', iconName: 'AlertTriangle', section: 'reportIssue', roles: ['customer', 'meter_reader', 'clerk_cashier'] },
         { name: 'User Management', iconName: 'Users', section: 'userManagement', roles: ['admin'] },
+        { name: 'Batch Billing', iconName: 'FileText', section: 'batchBilling', roles: ['admin'] },
+        { name: 'Route Management', iconName: 'Map', section: 'routeManagement', roles: ['admin'] },
         { name: 'Support Tickets', iconName: 'MessageSquare', section: 'supportTickets', roles: ['admin'] },
         { name: 'Manage Announcements', iconName: 'Edit', section: 'manageAnnouncements', roles: ['admin'] },
         { name: 'System Analytics', iconName: 'BarChart3', section: 'systemAnalytics', roles: ['admin'] },
@@ -81,12 +87,11 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
         { name: 'Contact Us', iconName: 'PhoneCall', section: 'contactUs', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
     ];
 
-    const availableNavItems = navItems.filter(item => userData.role && item.roles.includes(userData.role));
+    const availableNavItems = navItems.filter(item => userData?.role && item.roles.includes(userData.role));
     
     const renderSection = () => {
         const sectionProps = { user, userData, setUserData, auth, db, showNotification, billingService: billingService.calculateBillDetails, determineServiceTypeAndRole: userUtils.determineServiceTypeAndRole, setActiveSection: handleNavigate };
 
-        // DEFINITIVE FIX: Added correct routing for all roles to fix 404 errors.
         switch (activeSection) {
             case 'mainDashboard':
                 if (userData.role === 'customer') return <CustomerDashboardMain {...sectionProps} />;
@@ -102,8 +107,10 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
             case 'contactUs': return <ContactUsSection {...sectionProps} />;
             case 'viewAnnouncements': return <AnnouncementManager {...sectionProps} viewOnly={true} />;
             case 'myBills': return userData.role === 'customer' ? <CustomerBillsSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
-            case 'myTickets': return userData.role === 'customer' ? <MyTicketsSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
+            case 'myTickets': return ['customer', 'clerk_cashier', 'meter_reader'].includes(userData.role) ? <MyTicketsSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
             case 'userManagement': return userData.role === 'admin' ? <UserManagementSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
+            case 'batchBilling': return userData.role === 'admin' ? <BatchBillingSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
+            case 'routeManagement': return userData.role === 'admin' ? <RouteManagementSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
             case 'supportTickets': return userData.role === 'admin' ? <SupportTicketManagementSection {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
             case 'manageAnnouncements': return userData.role === 'admin' ? <AnnouncementManager {...sectionProps} viewOnly={false} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
             case 'systemAnalytics': return userData.role === 'admin' ? <StatisticsDashboard {...sectionProps} /> : <NotFound onNavigateHome={() => handleNavigate('mainDashboard')} />;
@@ -134,6 +141,22 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
                     </div>
                 </main>
             </div>
+            <button
+                onClick={() => setIsChatbotOpen(true)}
+                className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transform hover:scale-110 transition-all duration-200 ease-in-out z-50"
+                aria-label="Open Chatbot"
+            >
+                <ChatIcon size={28} />
+            </button>
+            {isChatbotOpen && (
+                <ChatbotModal 
+                    isOpen={isChatbotOpen}
+                    onClose={() => setIsChatbotOpen(false)}
+                    userData={userData}
+                    showNotification={showNotification}
+                    setActiveDashboardSection={handleNavigate}
+                />
+            )}
         </div>
     );
 };

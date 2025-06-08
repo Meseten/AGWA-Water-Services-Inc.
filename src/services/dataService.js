@@ -1,7 +1,7 @@
 import {
     doc, setDoc, getDoc, addDoc, collection, updateDoc,
     deleteDoc, query, where, getDocs, serverTimestamp,
-    Timestamp, orderBy, writeBatch, getCountFromServer
+    Timestamp, orderBy, writeBatch, getCountFromServer, arrayUnion, limit
 } from 'firebase/firestore';
 import {
     userProfileDocumentPath,
@@ -14,6 +14,7 @@ import {
     profilesCollectionPath,
     meterRoutesCollectionPath
 } from '../firebase/firestorePaths.js'; 
+import * as billingService from './billingService.js';
 
 const handleFirestoreError = (functionName, error) => {
     console.error(`Firestore Error in ${functionName}:`, error.code, error.message);
@@ -21,13 +22,364 @@ const handleFirestoreError = (functionName, error) => {
     return { success: false, error: userFriendlyMessage };
 };
 
+export const getUniqueServiceLocations = async (dbInstance) => {
+    try {
+        const profilesRef = collection(dbInstance, profilesCollectionPath());
+        const snapshot = await getDocs(profilesRef);
+        const locations = new Set();
+        snapshot.docs.forEach(doc => {
+            const barangay = doc.data().serviceAddress?.barangay;
+            if (barangay) {
+                locations.add(barangay);
+            }
+        });
+        return { success: true, data: Array.from(locations).sort() };
+    } catch (error) {
+        return handleFirestoreError('getUniqueServiceLocations', error);
+    }
+};
+
+export const getAccountsByLocation = async (dbInstance, location) => {
+    try {
+        const profilesRef = collection(dbInstance, profilesCollectionPath());
+        const q = query(profilesRef, where("serviceAddress.barangay", "==", location));
+        const snapshot = await getDocs(q);
+        const accounts = snapshot.docs.map(doc => doc.data().accountNumber).filter(Boolean);
+        return { success: true, data: accounts };
+    } catch (error) {
+        return handleFirestoreError('getAccountsByLocation', error);
+    }
+};
+
+export const createOrUpdateMeterRoute = async (dbInstance, routeData, routeId = null) => {
+    try {
+        if (routeId) {
+            const routeRef = doc(dbInstance, meterRoutesCollectionPath(), routeId);
+            await updateDoc(routeRef, { ...routeData, updatedAt: serverTimestamp() });
+        } else {
+            await addDoc(collection(dbInstance, meterRoutesCollectionPath()), { ...routeData, createdAt: serverTimestamp() });
+        }
+        return { success: true };
+    } catch (error) {
+        return handleFirestoreError('createOrUpdateMeterRoute', error);
+    }
+};
+
+export const getAllMeterRoutes = async (dbInstance) => {
+    try {
+        const q = query(collection(dbInstance, meterRoutesCollectionPath()), orderBy("name", "asc"));
+        const snapshot = await getDocs(q);
+        return { success: true, data: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) };
+    } catch (error) {
+        return handleFirestoreError('getAllMeterRoutes', error);
+    }
+};
+
+export const deleteMeterRoute = async (dbInstance, routeId) => {
+    try {
+        await deleteDoc(doc(dbInstance, meterRoutesCollectionPath(), routeId));
+        return { success: true };
+    } catch (error) {
+        return handleFirestoreError('deleteMeterRoute', error);
+    }
+};
+
+export const getAllMeterReaders = async (dbInstance) => {
+    try {
+        const q = query(collection(dbInstance, profilesCollectionPath()), where("role", "==", "meter_reader"));
+        const snapshot = await getDocs(q);
+        return { success: true, data: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) };
+    } catch (error) {
+        return handleFirestoreError('getAllMeterReaders', error);
+    }
+};
+
+export const getRevenueStats = async (dbInstance) => {
+    try {
+        const paidBillsQuery = query(collection(dbInstance, allBillsCollectionPath()), where("status", "==", "Paid"));
+        const snapshot = await getDocs(paidBillsQuery);
+        const monthlyRevenue = {};
+        snapshot.forEach(doc => {
+            const bill = doc.data();
+            const paymentDate = bill.paymentDate?.toDate ? bill.paymentDate.toDate() : new Date();
+            const monthYear = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+            monthlyRevenue[monthYear] = (monthlyRevenue[monthYear] || 0) + (bill.amountPaid || 0);
+        });
+        const sortedRevenue = Object.entries(monthlyRevenue)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .slice(-12);
+        return { success: true, data: Object.fromEntries(sortedRevenue) };
+    } catch (error) {
+        return handleFirestoreError('getRevenueStats', error);
+    }
+};
+
+export const getDailyRevenueStats = async (dbInstance, days = 30) => {
+    try {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - days);
+
+        const paidBillsQuery = query(
+            collection(dbInstance, allBillsCollectionPath()),
+            where("status", "==", "Paid"),
+            where("paymentDate", ">=", startDate)
+        );
+        const snapshot = await getDocs(paidBillsQuery);
+        const dailyRevenue = {};
+        for (let i = 0; i < days; i++) {
+            const date = new Date(startDate);
+            date.setDate(startDate.getDate() + i);
+            const dayKey = date.toISOString().split('T')[0];
+            dailyRevenue[dayKey] = 0;
+        }
+        snapshot.forEach(doc => {
+            const bill = doc.data();
+            const paymentDate = bill.paymentDate?.toDate ? bill.paymentDate.toDate() : new Date();
+            const dayKey = paymentDate.toISOString().split('T')[0];
+            if(dailyRevenue[dayKey] !== undefined) {
+               dailyRevenue[dayKey] += (bill.amountPaid || 0);
+            }
+        });
+        return { success: true, data: dailyRevenue };
+    } catch (error) {
+        return handleFirestoreError('getDailyRevenueStats', error);
+    }
+};
+
+
+export const getPaymentDayOfWeekStats = async (dbInstance) => {
+    try {
+        const paidBillsQuery = query(collection(dbInstance, allBillsCollectionPath()), where("status", "==", "Paid"));
+        const snapshot = await getDocs(paidBillsQuery);
+        const dayCounts = { 'Sun': 0, 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0 };
+        snapshot.forEach(doc => {
+            const bill = doc.data();
+            const paymentDate = bill.paymentDate?.toDate ? bill.paymentDate.toDate() : null;
+            if (paymentDate) {
+                const dayIndex = paymentDate.getDay();
+                const dayName = Object.keys(dayCounts)[dayIndex];
+                dayCounts[dayName]++;
+            }
+        });
+        return { success: true, data: dayCounts };
+    } catch (error) {
+        return handleFirestoreError('getPaymentDayOfWeekStats', error);
+    }
+};
+
+export const getReadingsCountByReaderForDate = async (dbInstance, readerId, dateString) => {
+    try {
+        const readingsRef = collection(dbInstance, allMeterReadingsCollectionPath());
+        const q = query(readingsRef, 
+            where("readerId", "==", readerId),
+            where("readingDateString", "==", dateString)
+        );
+        
+        const snapshot = await getCountFromServer(q);
+        return { success: true, data: { count: snapshot.data().count } };
+    } catch (error) {
+        return handleFirestoreError('getReadingsCountByReaderForDate', error);
+    }
+};
+
+export const getAccountsInRoute = async (dbInstance, route) => {
+    if (!route || !route.accountNumbers || route.accountNumbers.length === 0) {
+        return { success: true, data: [] };
+    }
+    try {
+        const accountNumbers = route.accountNumbers;
+        const profilesRef = collection(dbInstance, profilesCollectionPath());
+        const fetchedProfiles = [];
+
+        for (let i = 0; i < accountNumbers.length; i += 30) {
+            const chunk = accountNumbers.slice(i, i + 30);
+            const q = query(profilesRef, where('accountNumber', 'in', chunk));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => fetchedProfiles.push({ id: doc.id, ...doc.data() }));
+        }
+        
+        return { success: true, data: fetchedProfiles };
+    } catch (error) {
+        return handleFirestoreError('getAccountsInRoute', error);
+    }
+};
+
+export const getUserProfile = async (dbInstance, userId) => {
+    try {
+        const docRef = doc(dbInstance, profilesCollectionPath(), userId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
+        } else {
+            return { success: false, error: "User profile not found." };
+        }
+    } catch (error) {
+        return handleFirestoreError('getUserProfile', error);
+    }
+};
+
+export const searchUserProfiles = async (dbInstance, searchTerm) => {
+    if (!searchTerm || !searchTerm.trim()) {
+        return { success: false, error: "Search term cannot be empty." };
+    }
+    const term = searchTerm.toLowerCase();
+    try {
+        const profilesRef = collection(dbInstance, profilesCollectionPath());
+        const queries = [
+            query(profilesRef, where('accountNumber', '==', searchTerm.toUpperCase())),
+            query(profilesRef, where('email', '==', term)),
+            query(profilesRef, where('meterSerialNumber', '==', term)),
+            query(profilesRef, where('displayNameLower', '>=', term), where('displayNameLower', '<=', term + '\uf8ff'))
+        ];
+        
+        const results = await Promise.all(queries.map(q => getDocs(q)));
+        
+        const foundUsers = new Map();
+        results.forEach(snapshot => {
+            snapshot.forEach(doc => {
+                if (!foundUsers.has(doc.id)) {
+                    foundUsers.set(doc.id, { id: doc.id, ...doc.data() });
+                }
+            });
+        });
+
+        return { success: true, data: Array.from(foundUsers.values()) };
+
+    } catch (error) {
+        return handleFirestoreError('searchUserProfiles', error);
+    }
+};
+
+export const generateBillForUser = async (dbInstance, userId, userProfile) => {
+    try {
+        const readingsQuery = query(
+            collection(dbInstance, allMeterReadingsCollectionPath()),
+            where("userId", "==", userId),
+            orderBy("readingDate", "desc"),
+            limit(2)
+        );
+        const readingsSnapshot = await getDocs(readingsQuery);
+
+        if (readingsSnapshot.docs.length < 2) {
+            return { success: false, error: "Cannot generate bill. At least two meter readings are required to calculate consumption." };
+        }
+
+        const latestReading = readingsSnapshot.docs[0].data();
+        const previousReading = readingsSnapshot.docs[1].data();
+
+        const consumption = latestReading.readingValue - previousReading.readingValue;
+        if (consumption < 0) {
+            return { success: false, error: "Cannot generate bill. The latest reading value is less than the previous one." };
+        }
+
+        const billMonthYear = new Date(latestReading.readingDate.toDate()).toLocaleString('default', { month: 'long', year: 'numeric' });
+        
+        const existingBillQuery = query(
+            collection(dbInstance, allBillsCollectionPath()),
+            where("userId", "==", userId),
+            where("monthYear", "==", billMonthYear)
+        );
+        const existingBillSnapshot = await getDocs(existingBillQuery);
+        if (!existingBillSnapshot.empty) {
+            return { success: false, error: `A bill for ${billMonthYear} already exists for this user.` };
+        }
+        
+        const settingsResult = await getSystemSettings(dbInstance);
+        const systemSettings = settingsResult.success ? settingsResult.data : {};
+        
+        const charges = billingService.calculateBillDetails(consumption, userProfile.serviceType, userProfile.meterSize, systemSettings);
+        
+        const billDate = latestReading.readingDate.toDate();
+        const dueDate = new Date(billDate);
+        dueDate.setDate(dueDate.getDate() + 15);
+
+        const newBill = {
+            userId: userId,
+            accountNumber: userProfile.accountNumber,
+            userName: userProfile.displayName,
+            billingPeriod: `${formatDate(previousReading.readingDate.toDate())} - ${formatDate(latestReading.readingDate.toDate())}`,
+            monthYear: billMonthYear,
+            billDate: Timestamp.fromDate(billDate),
+            dueDate: Timestamp.fromDate(dueDate),
+            previousReading: previousReading.readingValue,
+            currentReading: latestReading.readingValue,
+            consumption: consumption,
+            ...charges,
+            amount: charges.totalCalculatedCharges,
+            previousUnpaidAmount: 0, 
+            totalAmountDue: charges.totalCalculatedCharges,
+            status: 'Unpaid',
+            createdAt: serverTimestamp(),
+        };
+
+        await addDoc(collection(dbInstance, allBillsCollectionPath()), newBill);
+        
+        return { success: true, message: `Bill for ${billMonthYear} generated successfully!` };
+
+    } catch (error) {
+        return handleFirestoreError('generateBillForUser', error);
+    }
+};
+
+export const getBillableAccountsInLocation = async (dbInstance, location) => {
+    try {
+        const accountsInLocQuery = query(collection(dbInstance, profilesCollectionPath()), where("serviceAddress.barangay", "==", location));
+        const usersSnapshot = await getDocs(accountsInLocQuery);
+        if (usersSnapshot.empty) return { success: true, data: [] };
+
+        const billableAccounts = [];
+        for (const userDoc of usersSnapshot.docs) {
+            const userProfile = { id: userDoc.id, ...userDoc.data() };
+            const readingsQuery = query(collection(dbInstance, allMeterReadingsCollectionPath()), where("userId", "==", userProfile.id), orderBy("readingDate", "desc"), limit(2));
+            const readingsSnapshot = await getDocs(readingsQuery);
+            
+            if (readingsSnapshot.docs.length < 2) continue;
+
+            const latestReading = readingsSnapshot.docs[0].data();
+            const billMonthYear = new Date(latestReading.readingDate.toDate()).toLocaleString('default', { month: 'long', year: 'numeric' });
+            
+            const existingBillQuery = query(collection(dbInstance, allBillsCollectionPath()), where("userId", "==", userProfile.id), where("monthYear", "==", billMonthYear));
+            const existingBillSnapshot = await getDocs(existingBillQuery);
+
+            if (existingBillSnapshot.empty) {
+                billableAccounts.push(userProfile);
+            }
+        }
+        return { success: true, data: billableAccounts };
+    } catch (error) {
+        return handleFirestoreError('getBillableAccountsInLocation', error);
+    }
+};
+
+export const generateBillsForMultipleAccounts = async (dbInstance, accounts) => {
+    const logs = [];
+    for (const account of accounts) {
+        const result = await generateBillForUser(dbInstance, account.id, account);
+        if(result.success) {
+            logs.push({ success: true, message: `SUCCESS: Bill generated for ${account.accountNumber} - ${result.message}` });
+        } else {
+            logs.push({ success: false, message: `FAILED: Bill for ${account.accountNumber} - ${result.error}` });
+        }
+    }
+    return logs;
+};
+
+const formatDate = (date) => new Date(date).toLocaleDateString('en-US');
+
 export const createUserProfile = async (dbInstance, userId, profileData) => {
     try {
         const batch = writeBatch(dbInstance);
         if (profileData.accountNumber) {
             profileData.accountNumber = profileData.accountNumber.toUpperCase();
         }
-        const dataForDb = { ...profileData, uid: userId, createdAt: serverTimestamp(), lastLoginAt: serverTimestamp() };
+        const dataForDb = { 
+            ...profileData, 
+            uid: userId, 
+            createdAt: serverTimestamp(), 
+            lastLoginAt: serverTimestamp(),
+            displayNameLower: profileData.displayName ? profileData.displayName.toLowerCase() : ''
+        };
         
         const nestedProfileRef = doc(dbInstance, userProfileDocumentPath(userId));
         batch.set(nestedProfileRef, dataForDb);
@@ -47,6 +399,9 @@ export const updateUserProfile = async (dbInstance, userId, profileUpdates) => {
         const batch = writeBatch(dbInstance);
         if (profileUpdates.accountNumber) {
             profileUpdates.accountNumber = profileUpdates.accountNumber.toUpperCase();
+        }
+        if (profileUpdates.displayName) {
+            profileUpdates.displayNameLower = profileUpdates.displayName.toLowerCase();
         }
         const dataForUpdate = { ...profileUpdates, updatedAt: serverTimestamp() };
         
@@ -73,10 +428,27 @@ export const getAllUsersProfiles = async (dbInstance) => {
 export const createSupportTicket = async (dbInstance, ticketData) => {
     try {
         const collectionRef = collection(dbInstance, supportTicketsCollectionPath());
-        const docRef = await addDoc(collectionRef, { ...ticketData, status: 'Open', submittedAt: serverTimestamp() });
+        const docRef = await addDoc(collectionRef, { ...ticketData, status: 'Open', submittedAt: serverTimestamp(), conversation: [] });
         return { success: true, id: docRef.id };
     } catch (error) {
         return handleFirestoreError('createSupportTicket', error);
+    }
+};
+
+export const addTicketReply = async (dbInstance, ticketId, replyData) => {
+    try {
+        const ticketRef = doc(dbInstance, supportTicketDocumentPath(ticketId));
+        const updates = {
+            conversation: arrayUnion(replyData),
+            lastUpdatedAt: serverTimestamp(),
+        };
+        if (replyData.authorRole !== 'admin') {
+            updates.status = 'In Progress'; 
+        }
+        await updateDoc(ticketRef, updates);
+        return { success: true };
+    } catch (error) {
+        return handleFirestoreError('addTicketReply', error);
     }
 };
 
@@ -171,7 +543,7 @@ export const updateSystemSettings = async (dbInstance, settingsData) => {
 
 export const getBillsForUser = async (dbInstance, userId) => {
     try {
-        const q = query(collection(dbInstance, allBillsCollectionPath()), where("userId", "==", userId), orderBy("billDate", "desc"));
+        const q = query(collection(dbInstance, allBillsCollectionPath()), where("userId", "==", userId));
         const snapshot = await getDocs(q);
         return { success: true, data: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) };
     } catch (error) {
@@ -194,6 +566,7 @@ export const addMeterReading = async (dbInstance, readingData) => {
         const dataToSave = {
              ...readingData,
              readingDate: Timestamp.fromDate(readingDateObj),
+             readingDateString: readingData.readingDate,
              recordedAt: serverTimestamp()
         };
         const docRef = await addDoc(collection(dbInstance, allMeterReadingsCollectionPath()), dataToSave);
@@ -275,9 +648,29 @@ export const getTicketsStats = async (dbInstance) => {
     try {
         const ticketsRef = collection(dbInstance, supportTicketsCollectionPath());
         const totalSnapshot = await getCountFromServer(ticketsRef);
-        const openQuery = query(ticketsRef, where('status', 'in', ['Open', 'In Progress']));
-        const openSnapshot = await getCountFromServer(openQuery);
-        return { success: true, data: { total: totalSnapshot.data().count, open: openSnapshot.data().count } };
+        
+        const openQuery = query(ticketsRef, where('status', '==', 'Open'));
+        const inProgressQuery = query(ticketsRef, where('status', '==', 'In Progress'));
+        const resolvedQuery = query(ticketsRef, where('status', '==', 'Resolved'));
+        const closedQuery = query(ticketsRef, where('status', '==', 'Closed'));
+
+        const [openSnapshot, inProgressSnapshot, resolvedSnapshot, closedSnapshot] = await Promise.all([
+            getCountFromServer(openQuery),
+            getCountFromServer(inProgressQuery),
+            getCountFromServer(resolvedQuery),
+            getCountFromServer(closedQuery)
+        ]);
+
+        return { 
+            success: true, 
+            data: { 
+                total: totalSnapshot.data().count, 
+                open: openSnapshot.data().count,
+                inProgress: inProgressSnapshot.data().count,
+                resolved: resolvedSnapshot.data().count,
+                closed: closedSnapshot.data().count
+            } 
+        };
     } catch(e) {
         return handleFirestoreError('getTicketsStats', e);
     }
@@ -295,11 +688,31 @@ export const getAnnouncementsStats = async (dbInstance) => {
     }
 };
 
+
+export const getBillingStatsForCurrentCycle = async (dbInstance) => {
+    try {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        const billsRef = collection(dbInstance, allBillsCollectionPath());
+        const q = query(billsRef,
+            where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
+            where('createdAt', '<=', Timestamp.fromDate(endOfMonth))
+        );
+        
+        const snapshot = await getCountFromServer(q);
+        return { success: true, data: { count: snapshot.data().count } };
+    } catch (e) {
+        return handleFirestoreError('getBillingStatsForCurrentCycle', e);
+    }
+};
+
 export const getPaymentsByClerkForToday = async (dbInstance, clerkId) => {
     try {
         const today = new Date();
-        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-        const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+        const startOfDay = Timestamp.fromDate(new Date(new Date().setHours(0, 0, 0, 0)));
+        const endOfDay = Timestamp.fromDate(new Date(new Date().setHours(23, 59, 59, 999)));
 
         const paymentsRef = collection(dbInstance, allBillsCollectionPath());
         const q = query(paymentsRef, 
@@ -307,16 +720,22 @@ export const getPaymentsByClerkForToday = async (dbInstance, clerkId) => {
             where("paymentTimestamp", ">=", startOfDay),
             where("paymentTimestamp", "<=", endOfDay)
         );
-
+        
         const snapshot = await getDocs(q);
         let totalCollected = 0;
-        snapshot.forEach(doc => {
-            totalCollected += doc.data().amountPaid || 0;
+        const transactions = snapshot.docs.map(doc => {
+            const data = doc.data();
+            totalCollected += data.amountPaid || 0;
+            return {
+                id: doc.id,
+                ...data
+            };
         });
 
         const stats = {
             paymentsTodayCount: snapshot.size,
             totalCollectedToday: totalCollected,
+            transactions: transactions.sort((a,b) => b.paymentTimestamp.toDate() - a.paymentTimestamp.toDate())
         };
         
         return { success: true, data: stats };
@@ -324,5 +743,4 @@ export const getPaymentsByClerkForToday = async (dbInstance, clerkId) => {
         return handleFirestoreError('getPaymentsByClerkForToday', error);
     }
 };
-
 export { serverTimestamp, Timestamp };

@@ -1,6 +1,4 @@
-// src/features/meter_reader/SearchCustomerProfileMeterReader.jsx
 import React, { useState } from 'react';
-// FIX: Added 'Mail' and other potentially used icons to the import list.
 import { Search, UserCircle, Hash, MapPin, Gauge, Info, Loader2, AlertTriangle, CheckCircle, Mail } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import * as DataService from '../../services/dataService';
@@ -24,30 +22,25 @@ const SearchCustomerProfileMeterReader = ({ db, showNotification }) => {
         setSearchedUser(null);
 
         try {
-            const usersResult = await DataService.getAllUsersProfiles(db);
-            if (usersResult.success && usersResult.data) {
-                const searchLower = searchTerm.toLowerCase();
-                const foundUser = usersResult.data.find(
-                    user => user.accountNumber?.toLowerCase() === searchLower ||
-                            user.displayName?.toLowerCase().includes(searchLower) ||
-                            user.meterSerialNumber?.toLowerCase() === searchLower
-                );
+            const usersResult = await DataService.searchUserProfiles(db, searchTerm);
 
-                if (foundUser) {
-                    setSearchedUser(foundUser);
-                } else {
-                    setError(`No customer found matching "${searchTerm}".`);
-                    showNotification(`No customer found.`, "info");
-                }
+            if (usersResult.success && usersResult.data.length > 0) {
+                 setSearchedUser(usersResult.data[0]);
+            } else if (usersResult.success) {
+                setError(`No customer found matching "${searchTerm}".`);
             } else {
                 setError(usersResult.error || "Failed to search for users.");
-                showNotification(usersResult.error || "Failed to search for users.", "error");
             }
         } catch (err) {
             setError("An error occurred during the search.");
-            showNotification("An error occurred during the search.", "error");
         }
         setIsLoading(false);
+    };
+    
+    const formatAddressToString = (addressObj) => {
+        if (!addressObj || typeof addressObj !== 'object') return addressObj || 'N/A';
+        const parts = [addressObj.street, addressObj.barangay, addressObj.district, "Quezon City"];
+        return parts.filter(p => p && p.trim()).join(', ');
     };
 
     const InfoRow = ({ label, value, icon: Icon }) => (
@@ -105,7 +98,7 @@ const SearchCustomerProfileMeterReader = ({ db, showNotification }) => {
                         <InfoRow label="Account Name" value={searchedUser.displayName} icon={UserCircle} />
                         <InfoRow label="Account Number" value={searchedUser.accountNumber} icon={Hash} />
                         <InfoRow label="Email Address" value={searchedUser.email} icon={Mail} />
-                        <InfoRow label="Service Address" value={searchedUser.serviceAddress} icon={MapPin} />
+                        <InfoRow label="Service Address" value={formatAddressToString(searchedUser.serviceAddress)} icon={MapPin} />
                         <InfoRow label="Meter Serial No." value={searchedUser.meterSerialNumber} icon={Gauge} />
                         <InfoRow label="Meter Size" value={searchedUser.meterSize} icon={Gauge} />
                         <InfoRow label="Service Type" value={searchedUser.serviceType} icon={Info} />

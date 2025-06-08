@@ -1,4 +1,3 @@
-// src/features/common/ReportIssueSection.jsx
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, MessageCircle, MapPin, Sparkles, Send, Loader2, ListChecks } from 'lucide-react';
 import { callGeminiAPI } from '../../services/geminiService.js';
@@ -19,8 +18,30 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
     const [isAiCategorizing, setIsAiCategorizing] = useState(false);
     const [isAiAssisting, setIsAiAssisting] = useState(false);
     
-    const validateForm = (currentValues) => { /* ... (no changes) ... */ };
-    const submitIssueReport = async (formValues, resetFormCallback) => { /* ... (no changes) ... */ };
+    const validateForm = (currentValues) => {
+        const errors = {};
+        if (!currentValues.issueType) errors.issueType = "Please select an issue type.";
+        if (!currentValues.description.trim()) errors.description = "Description cannot be empty.";
+        if (!currentValues.issueAddress.trim()) errors.issueAddress = "Please specify the location of the issue.";
+        return errors;
+    };
+
+    const submitIssueReport = async (formValues, resetFormCallback) => {
+        const ticketData = {
+            ...formValues,
+            userId: user.uid,
+            userName: userData.displayName,
+            userEmail: userData.email,
+            accountNumber: userData.accountNumber || "N/A",
+        };
+        const result = await DataService.createSupportTicket(db, ticketData);
+        if (result.success) {
+            showNotification("Support ticket submitted successfully!", "success");
+            resetFormCallback();
+        } else {
+            showNotification(result.error || "Failed to submit ticket.", "error");
+        }
+    };
 
     const {
         values,
@@ -33,9 +54,27 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
 
     const customerIssueTypes = [ "Billing Discrepancy or Inquiry", "Water Leak (Before Meter)", "Water Leak (After Meter - Your Property)", "No Water Supply / Low Pressure", "Water Quality Issue (Color, Odor, Taste)", "Meter Problem (Damaged, Stuck, Inaccurate)", "Online Portal Issue / Account Access", "Request for Service (Disconnection/Reconnection)", "Chatbot Assistance Follow-up", "Other Concern" ];
     const meterReaderIssueTypes = [ "Unable to Access Meter", "Damaged or Tampered Meter Found", "Suspected Illegal Connection", "Route Data Inaccuracy", "Safety Concern on Route", "Device or App Problem", "Customer Inquiry on Field", "Other Field Report" ];
-    const availableIssueTypes = userData?.role === 'meterReader' ? meterReaderIssueTypes : customerIssueTypes;
+    const clerkIssueTypes = [ "Payment Posting Issue", "Customer Account Inquiry", "Bill Printing Problem", "System Access/Login Issue", "Other Office Concern"];
+    const adminIssueTypes = [ "User Role/Permission Change Request", "Data Correction Request", "System Bug Report", "Feature Request", "Urgent System Alert"];
     
-    useEffect(() => { /* ... (no changes) ... */ }, [setFieldValue, userData.role]);
+    const [availableIssueTypes, setAvailableIssueTypes] = useState(customerIssueTypes);
+
+    useEffect(() => {
+        switch (userData?.role) {
+            case 'meter_reader':
+                setAvailableIssueTypes(meterReaderIssueTypes);
+                break;
+            case 'clerk_cashier':
+                setAvailableIssueTypes(clerkIssueTypes);
+                break;
+            case 'admin':
+                 setAvailableIssueTypes(adminIssueTypes);
+                 break;
+            default:
+                setAvailableIssueTypes(customerIssueTypes);
+        }
+         setFieldValue('issueType', '');
+    }, [userData.role, setFieldValue]);
 
     const handleAiCategorize = async () => {
         if (!values.description.trim()) {
@@ -47,7 +86,7 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
             const categories = availableIssueTypes.join(', ');
             const prompt = `Based on the following user complaint, which of these categories does it best fit into? Categories: [${categories}]. Respond with only the exact category name from the list and nothing else. Complaint: "${values.description}"`;
             let category = await callGeminiAPI(prompt);
-            category = category.replace(/["'.]/g, "").trim(); // Clean up response
+            category = category.replace(/["'.]/g, "").trim(); 
 
             if (availableIssueTypes.includes(category)) {
                 setFieldValue('issueType', category);
@@ -62,7 +101,23 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
         }
     };
     
-    const handleAiAssist = async () => { /* ... (no changes) ... */ };
+    const handleAiAssist = async () => {
+        if (!values.description.trim()) {
+            showNotification("Please provide some keywords or a brief description for the AI to expand upon.", "warning");
+            return;
+        }
+        setIsAiAssisting(true);
+        try {
+            const prompt = `You are helping a user report an issue to AGWA Water Services. Elaborate on the following user-provided details to create a clear, detailed, and formal issue description. Be polite and include any relevant questions the user might need to answer. Do not add any extra commentary, just provide the refined description.\n\nUser's input: "${values.description}"`;
+            const assistedDescription = await callGeminiAPI(prompt);
+            setFieldValue('description', assistedDescription);
+            showNotification("AI has helped draft your issue description!", "success");
+        } catch (error) {
+            showNotification(error.message || "AI assistance failed.", "error");
+        } finally {
+            setIsAiAssisting(false);
+        }
+    };
 
     return (
         <div className="p-4 sm:p-6 bg-white rounded-xl shadow-xl animate-fadeIn">
@@ -118,12 +173,12 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
                         <label htmlFor="description" className="text-sm font-medium text-gray-700 flex items-center">
                             <MessageCircle size={16} className="mr-1.5 text-gray-500" /> Detailed Description of Issue *
                         </label>
-                        <Tooltip text="Use AI to help draft or refine your description.">
-                             <button
+                        <Tooltip text={!values.description.trim() ? "Write a description first to enable AI Assist" : "Use AI to help draft or refine your description."}>
+                            <button
                                 type="button"
                                 onClick={handleAiAssist} 
                                 className={`${commonButtonClass} text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 focus:ring-purple-300 py-1.5 px-3`}
-                                disabled={isAiAssisting || isSubmitting}
+                                disabled={isAiAssisting || isSubmitting || !values.description.trim()}
                             >
                                 {isAiAssisting ? <Loader2 size={16} className="animate-spin mr-1.5" /> : <Sparkles size={16} className="mr-1.5" />}
                                 {isAiAssisting ? 'Drafting...' : 'AI Assist'}

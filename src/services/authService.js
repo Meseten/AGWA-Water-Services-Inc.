@@ -1,4 +1,3 @@
-// src/services/authService.js
 import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
@@ -7,20 +6,18 @@ import {
     signOut,
     sendPasswordResetEmail,
     sendSignInLinkToEmail,
-    isSignInWithEmailLink, // <<< FIX: This function was missing from the import
+    isSignInWithEmailLink,
     signInWithEmailLink,
     RecaptchaVerifier,
     signInWithPhoneNumber,
     updateProfile as updateFirebaseProfile,
 } from 'firebase/auth';
 
-// --- Helper for formatting auth errors ---
 export const formatAuthError = (error) => {
     let message = error.message || "An unknown authentication error occurred.";
     if (error.code) {
         message = error.code.replace('auth/', '').replace(/-/g, ' ');
         message = message.charAt(0).toUpperCase() + message.slice(1) + '.';
-        // Specific messages for better UX
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') message = 'Invalid credentials. Please check your email and password.';
         if (error.code === 'auth/email-already-in-use') message = 'This email address is already registered. Please try logging in.';
     }
@@ -28,7 +25,6 @@ export const formatAuthError = (error) => {
     return message;
 };
 
-// --- Email/Password Authentication ---
 export const signUpWithEmail = async (authInstance, email, password) => {
     try {
         const userCredential = await createUserWithEmailAndPassword(authInstance, email, password);
@@ -47,7 +43,6 @@ export const signInWithEmail = async (authInstance, email, password) => {
     }
 };
 
-// --- Google Sign-In ---
 export const signInWithGoogle = async (authInstance) => {
     try {
         const provider = new GoogleAuthProvider();
@@ -58,7 +53,6 @@ export const signInWithGoogle = async (authInstance) => {
     }
 };
 
-// --- Passwordless (Email Link) Sign-In ---
 export const sendSignInEmailLinkService = async (authInstance, email, actionCodeSettings) => {
     try {
         await sendSignInLinkToEmail(authInstance, email, actionCodeSettings);
@@ -69,7 +63,6 @@ export const sendSignInEmailLinkService = async (authInstance, email, actionCode
     }
 };
 
-// FIX: Exporting the function so it can be used in App.jsx
 export { isSignInWithEmailLink };
 
 export const handleSignInWithEmailLink = async (authInstance, email, href) => {
@@ -85,8 +78,6 @@ export const handleSignInWithEmailLink = async (authInstance, email, href) => {
     return { success: false, error: "Not a valid sign-in-with-email-link request." };
 };
 
-
-// --- Phone Number (OTP) Sign-In ---
 let phoneConfirmationResult = null;
 
 export const setupRecaptcha = (authInstance, containerId) => {
@@ -127,7 +118,6 @@ export const verifyOtpAndSignInService = async (otp) => {
     }
 };
 
-// --- Password Reset ---
 export const sendPasswordResetService = async (authInstance, email) => {
     try {
         await sendPasswordResetEmail(authInstance, email);
@@ -137,7 +127,6 @@ export const sendPasswordResetService = async (authInstance, email) => {
     }
 };
 
-// --- Logout ---
 export const logoutUserService = async (authInstance) => {
     try {
         await signOut(authInstance);
@@ -147,7 +136,6 @@ export const logoutUserService = async (authInstance) => {
     }
 };
 
-// --- Update Firebase Auth Profile ---
 export const updateUserFirebaseAuthProfile = async (authInstance, profileUpdates) => {
     if (!authInstance.currentUser) {
         return { success: false, error: "No user is currently signed in." };

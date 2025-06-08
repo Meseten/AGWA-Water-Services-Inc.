@@ -1,4 +1,3 @@
-// src/features/admin/UserManagementSection.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { Edit3, Users, Search, Filter, Loader2, AlertTriangle, ShieldCheck, UserCheck, UserX, RotateCcw, Info } from "lucide-react";
 import UserEditModal from "./UserEditModal.jsx";
@@ -32,11 +31,10 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
             setUsers(result.data.sort((a,b) => (a.displayName || a.email || '').localeCompare(b.displayName || b.email || '')));
         } else {
             const errorMsg = result.error || "Failed to fetch user list. Please try again.";
-            showNotification(errorMsg, "error");
             setFetchError(errorMsg);
         }
         setIsLoading(false);
-    }, [db, showNotification]);
+    }, [db]);
 
     useEffect(() => {
         fetchUsers();
@@ -90,7 +88,7 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
                (filterStatus ? user.accountStatus === filterStatus : true);
     });
 
-    const roleColors = { admin: 'bg-purple-100 text-purple-700', customer: 'bg-blue-100 text-blue-700', meterReader: 'bg-teal-100 text-teal-700', clerk_cashier: 'bg-indigo-100 text-indigo-700', unknown: 'bg-gray-100 text-gray-700' };
+    const roleColors = { admin: 'bg-purple-100 text-purple-700', customer: 'bg-blue-100 text-blue-700', meter_reader: 'bg-teal-100 text-teal-700', clerk_cashier: 'bg-indigo-100 text-indigo-700', unknown: 'bg-gray-100 text-gray-700' };
     const statusColors = { Active: 'bg-green-100 text-green-700', Inactive: 'bg-gray-200 text-gray-600', Suspended: 'bg-red-100 text-red-700', 'Profile Missing': 'bg-yellow-100 text-yellow-700', Unknown: 'bg-gray-100 text-gray-600' };
 
     if (isLoading) {
@@ -115,7 +113,7 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
                 </div>
                 <div>
                     <label htmlFor="userMgmtFilterRole" className="block text-xs font-medium text-gray-600 mb-1">Filter by Role</label>
-                    <div className="relative"><Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" /><select id="userMgmtFilterRole" className={`${commonInputClass} pl-9`} value={filterRole} onChange={(e) => setFilterRole(e.target.value)}><option value="">All Roles</option><option value="customer">Customer</option><option value="admin">Admin</option><option value="meterReader">Meter Reader</option><option value="clerk_cashier">Clerk/Cashier</option></select></div>
+                    <div className="relative"><Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" /><select id="userMgmtFilterRole" className={`${commonInputClass} pl-9`} value={filterRole} onChange={(e) => setFilterRole(e.target.value)}><option value="">All Roles</option><option value="customer">Customer</option><option value="admin">Admin</option><option value="meter_reader">Meter Reader</option><option value="clerk_cashier">Clerk/Cashier</option></select></div>
                 </div>
                 <div>
                      <label htmlFor="userMgmtFilterStatus" className="block text-xs font-medium text-gray-600 mb-1">Filter by Status</label>

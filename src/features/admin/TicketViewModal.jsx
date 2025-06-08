@@ -1,40 +1,31 @@
-// src/features/admin/TicketViewModal.jsx
-import React, { useState, useEffect } from 'react';
-import Modal from '../../components/ui/Modal.jsx'; // Added .jsx
+import React, { useState, useEffect, useRef } from 'react';
+import Modal from '../../components/ui/Modal.jsx';
 import { 
     MessageSquare, UserCircle, Hash, Mail, CalendarDays, Edit, Save, Loader2, 
-    AlertTriangle, CheckSquare, FilePlus, Send, X, ShieldAlert, Info, Building, Clock,
-    DollarSign, Droplets, Gauge, UserCog, MapPin // Added missing icons
+    AlertTriangle, CheckSquare, FilePlus, Send, X, ShieldAlert, Info, Clock,
+    DollarSign, Droplets, Gauge, UserCog, MapPin, Sparkles
 } from 'lucide-react';
-import { formatDate } from '../../utils/userUtils.js'; // .js is fine
-import * as DataService from '../../services/dataService.js'; // .js is fine
+import { formatDate } from '../../utils/userUtils.js';
+import * as DataService from '../../services/dataService.js';
+import { Timestamp } from 'firebase/firestore';
+import { callGeminiAPI } from '../../services/geminiService.js';
 
-/**
- * TicketViewModal for admins to view and manage support ticket details in a large modal.
- * @param {object} props - Component props.
- * @param {boolean} props.isOpen - Whether the modal is open.
- * @param {function} props.onClose - Function to close the modal.
- * @param {object} props.ticket - The ticket object to display/edit.
- * @param {object} props.db - Firestore instance.
- * @param {object} props.adminUserData - Current admin's user data.
- * @param {function} props.showNotification - Function to display notifications.
- * @param {function} props.onTicketUpdate - Callback function after a ticket is updated.
- */
 const TicketViewModal = ({
     isOpen,
     onClose,
     ticket,
     db,
-    // appId, // Removed unused prop
     adminUserData,
     showNotification,
     onTicketUpdate
 }) => {
     const [currentTicket, setCurrentTicket] = useState(null);
     const [newStatus, setNewStatus] = useState('');
-    const [adminNote, setAdminNote] = useState('');
+    const [replyText, setReplyText] = useState('');
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-    const [isAddingNote, setIsAddingNote] = useState(false);
+    const [isSendingReply, setIsSendingReply] = useState(false);
+    const [isAiAssisting, setIsAiAssisting] = useState(false);
+    const conversationEndRef = useRef(null);
 
     useEffect(() => {
         if (ticket) {
@@ -44,6 +35,10 @@ const TicketViewModal = ({
             setCurrentTicket(null);
         }
     }, [ticket]);
+
+    useEffect(() => {
+        conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [currentTicket?.conversation]);
 
     if (!isOpen || !currentTicket) return null;
 
@@ -59,8 +54,7 @@ const TicketViewModal = ({
         const updates = {
             status: newStatus,
             lastUpdatedByAdminName: adminUserData.displayName || 'Admin',
-            lastUpdatedByAdminId: adminUserData.uid,
-            lastUpdatedAt: DataService.serverTimestamp(),
+            lastUpdatedByAdminId: adminUserData.uid
         };
         const result = await DataService.updateSupportTicket(db, currentTicket.id, updates);
         if (result.success) {
@@ -74,162 +68,148 @@ const TicketViewModal = ({
         setIsUpdatingStatus(false);
     };
 
-    const handleAddAdminNote = async () => {
-        if (!adminNote.trim()) {
-            showNotification("Admin note cannot be empty.", "warning");
+    const handleSendReply = async () => {
+        if (!replyText.trim()) {
+            showNotification("Reply cannot be empty.", "warning");
             return;
         }
-        setIsAddingNote(true);
-        const noteDataForSave = {
-            text: adminNote,
+        setIsSendingReply(true);
+        const replyData = {
+            text: replyText,
             authorId: adminUserData.uid,
-            authorName: adminUserData.displayName || 'Admin',
-            timestamp: DataService.serverTimestamp(),
+            authorName: adminUserData.displayName,
+            authorRole: adminUserData.role,
+            timestamp: Timestamp.fromDate(new Date()),
         };
-        
-        const currentNotes = Array.isArray(currentTicket.adminNotes) ? currentTicket.adminNotes : [];
-        const updatedAdminNotesForSave = [...currentNotes, noteDataForSave];
-        
-        const result = await DataService.updateSupportTicket(db, currentTicket.id, {
-            adminNotes: updatedAdminNotesForSave,
-            lastUpdatedByAdminName: adminUserData.displayName || 'Admin',
-            lastUpdatedByAdminId: adminUserData.uid,
-            lastUpdatedAt: DataService.serverTimestamp(),
-        });
+
+        const result = await DataService.addTicketReply(db, currentTicket.id, replyData);
 
         if (result.success) {
-            showNotification("Admin note added successfully!", "success");
-            const displayNote = { ...noteDataForSave, timestamp: new Date() };
-            const newTicketState = { ...currentTicket, adminNotes: [...currentNotes, displayNote], lastUpdatedAt: new Date() };
-            setCurrentTicket(newTicketState);
-            if (onTicketUpdate) onTicketUpdate(newTicketState);
-            setAdminNote('');
+            showNotification("Reply sent successfully!", "success");
+            const newConversation = [...(currentTicket.conversation || []), replyData];
+            const updatedTicketData = { ...currentTicket, conversation: newConversation, lastUpdatedAt: new Date(), status: 'In Progress' };
+            setCurrentTicket(updatedTicketData);
+            if (onTicketUpdate) onTicketUpdate(updatedTicketData);
+            setReplyText('');
         } else {
-            showNotification(result.error || "Failed to add admin note.", "error");
+            showNotification(result.error || "Failed to send reply.", "error");
         }
-        setIsAddingNote(false);
+        setIsSendingReply(false);
     };
 
-    const InfoRow = ({ label, value, icon: Icon, valueClass = "text-gray-700", fullWidthValue = false, isHtml = false }) => (
-        <div className={`py-2 border-b border-slate-100 last:border-b-0 ${fullWidthValue ? 'block sm:flex flex-col sm:flex-row' : 'flex items-start'}`}>
-            <span className="text-xs font-semibold text-slate-500 w-full sm:w-36 md:w-44 flex items-center mb-0.5 sm:mb-0 shrink-0">
-                {Icon && <Icon size={14} className="mr-2 text-slate-400 flex-shrink-0" />}
+    const handleAiAssist = async () => {
+        if (!replyText.trim()) {
+            showNotification("Please write a draft or some keywords for the AI to assist with.", "warning");
+            return;
+        }
+        setIsAiAssisting(true);
+        try {
+            const conversationHistory = (currentTicket.conversation || []).map(msg => `${msg.authorRole}: ${msg.text}`).join('\n');
+            const prompt = `
+                You are a professional and empathetic customer support agent for AGWA Water Services.
+                A customer has filed a support ticket.
+                Ticket Description: "${currentTicket.description}"
+                Conversation History so far:
+                ${conversationHistory}
+                
+                My draft reply is: "${replyText}"
+
+                Please refine my draft into a formal, clear, and helpful response. Address the customer by name if possible (${currentTicket.userName}). Maintain a polite and professional tone. Do not add any extra commentary, just provide the refined reply.
+            `;
+            const assistedReply = await callGeminiAPI(prompt);
+            setReplyText(assistedReply);
+            showNotification("AI has refined your reply!", "success");
+        } catch (error) {
+            showNotification(error.message || "AI assistance failed.", "error");
+        } finally {
+            setIsAiAssisting(false);
+        }
+    };
+
+    const InfoRow = ({ label, value, icon: Icon, valueClass = "text-gray-700" }) => (
+        <div className="flex items-start py-2 border-b border-slate-100 last:border-b-0">
+            <span className="text-xs font-semibold text-slate-500 w-32 flex items-center shrink-0">
+                {Icon && <Icon size={14} className="mr-2 text-slate-400" />}
                 {label}:
             </span>
-            {isHtml ? (
-                 <div className={`text-sm ${valueClass} ${fullWidthValue ? 'mt-0.5 sm:mt-0 sm:ml-0 block' : 'flex-1 text-right sm:text-left'}`} dangerouslySetInnerHTML={{ __html: value || 'N/A' }} />
-            ) : (
-                 <span className={`text-sm ${valueClass} ${fullWidthValue ? 'mt-0.5 sm:mt-0 sm:ml-0 block' : 'flex-1 text-right sm:text-left'}`}>{value || 'N/A'}</span>
-            )}
+            <span className={`text-sm ${valueClass} flex-1`}>{value || 'N/A'}</span>
         </div>
     );
     
-    const ticketStatusOptions = ['Open', 'In Progress', 'On Hold', 'Awaiting Customer', 'Resolved', 'Closed'];
     const getStatusPillClass = (status) => {
         switch (status) {
-            case 'Open': return 'bg-red-100 text-red-700 border-red-300';
-            case 'In Progress': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-            case 'On Hold': return 'bg-gray-200 text-gray-700 border-gray-400';
-            case 'Awaiting Customer': return 'bg-blue-100 text-blue-700 border-blue-300';
-            case 'Resolved': return 'bg-green-100 text-green-700 border-green-300';
-            case 'Closed': return 'bg-purple-100 text-purple-700 border-purple-300';
-            default: return 'bg-gray-100 text-gray-600 border-gray-300';
+            case 'Open': return 'bg-red-100 text-red-700';
+            case 'In Progress': return 'bg-yellow-100 text-yellow-700';
+            case 'Resolved': return 'bg-green-100 text-green-700';
+            case 'Closed': return 'bg-purple-100 text-purple-700';
+            default: return 'bg-gray-100 text-gray-600';
         }
     };
-    const getIssueTypeIconAndColor = (issueType) => {
-        const typeLower = issueType?.toLowerCase() || '';
-        if (typeLower.includes('billing')) return { icon: DollarSign, color: 'text-orange-600' };
-        if (typeLower.includes('leak')) return { icon: Droplets, color: 'text-blue-600' };
-        if (typeLower.includes('meter')) return { icon: Gauge, color: 'text-teal-600' };
-        if (typeLower.includes('supply') || typeLower.includes('no water')) return { icon: AlertTriangle, color: 'text-red-600' };
-        if (typeLower.includes('portal') || typeLower.includes('account access')) return { icon: UserCog, color: 'text-indigo-600' };
-        if (typeLower.includes('chatbot')) return { icon: MessageSquare, color: 'text-purple-600'};
-        return { icon: Info, color: 'text-gray-600' };
-    };
-    const { icon: IssueTypeIconItself, color: issueTypeColor } = getIssueTypeIconAndColor(currentTicket.issueType);
+    const ticketStatusOptions = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="" size="full" modalDialogClassName="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] h-[95vh]" contentClassName="p-0 flex flex-col">
-            <div className="flex justify-between items-center p-3 sm:p-4 border-b border-gray-200 bg-slate-50 rounded-t-xl sticky top-0 z-10">
-                <div className="flex items-center min-w-0">
-                    {IssueTypeIconItself && <IssueTypeIconItself size={22} className={`mr-2.5 ${issueTypeColor} flex-shrink-0`} />}
-                    <h3 className="text-md sm:text-lg font-semibold text-slate-800 truncate" title={`Ticket ID: ${currentTicket.id}`}>
-                        Ticket: {currentTicket.issueType}
-                    </h3>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="p-2 text-gray-500 hover:text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    title="Close Ticket View"
-                >
-                    <X size={18} />
-                </button>
+        <Modal isOpen={isOpen} onClose={onClose} title={`Ticket Details`} size="full" modalDialogClassName="sm:max-w-4xl w-[95vw] h-[95vh]" contentClassName="p-0 flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-slate-50 rounded-t-xl sticky top-0 z-10">
+                <h3 className="text-lg font-semibold text-slate-800 truncate" title={currentTicket.issueType}>{currentTicket.issueType}</h3>
+                <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-700 rounded-lg"><X size={18} /></button>
             </div>
 
-            <div className="overflow-y-auto flex-grow p-4 sm:p-6 space-y-6">
-                <div className="p-4 border rounded-lg bg-slate-50/70 border-slate-200 shadow-sm">
-                    <h4 className="text-sm font-semibold text-slate-600 mb-2 border-b border-slate-200 pb-1.5">Ticket Overview</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-0">
-                        <InfoRow label="Ticket ID" value={currentTicket.id} icon={Hash} valueClass="font-mono text-xs text-slate-600" />
-                        <InfoRow label="Status" value={
-                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusPillClass(currentTicket.status)}`}>
-                                {currentTicket.status}
-                            </span>
-                        } icon={ShieldAlert} />
-                        <InfoRow label="Submitted By" value={`${currentTicket.userName} (${currentTicket.userEmail || 'N/A'})`} icon={UserCircle} />
-                        <InfoRow label="Account No." value={currentTicket.accountNumber || 'N/A'} icon={Hash} />
-                        <InfoRow label="Submitted On" value={formatDate(currentTicket.submittedAt)} icon={CalendarDays} />
-                        <InfoRow label="Last Update" value={formatDate(currentTicket.lastUpdatedAt || currentTicket.lastUpdatedByAdminName || currentTicket.submittedAt)} icon={Clock} />
-                        <InfoRow label="User Role" value={currentTicket.userRole?.replace('_', ' ') || 'N/A'} icon={UserCog} valueClass="capitalize" />
-                        {currentTicket.lastUpdatedByAdminName && <InfoRow label="Updated By" value={currentTicket.lastUpdatedByAdminName} icon={UserCog} />}
-                        <div className="md:col-span-2">
-                             <InfoRow label="Location/Address" value={currentTicket.issueAddress} icon={MapPin} fullWidthValue={true} />
-                        </div>
+            <div className="overflow-y-auto flex-grow p-4 space-y-4">
+                <div className="p-4 border rounded-lg bg-slate-50/70">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+                        <InfoRow label="User" value={`${currentTicket.userName} (${currentTicket.userEmail || 'N/A'})`} icon={UserCircle} />
+                        <InfoRow label="Account No" value={currentTicket.accountNumber || 'N/A'} icon={Hash} />
+                        <InfoRow label="Submitted" value={formatDate(currentTicket.submittedAt)} icon={CalendarDays} />
+                        <InfoRow label="Last Update" value={formatDate(currentTicket.lastUpdatedAt)} icon={Clock} />
+                        <InfoRow label="Status" value={<span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusPillClass(currentTicket.status)}`}>{currentTicket.status}</span>} icon={AlertTriangle} />
                     </div>
                 </div>
 
-                <div className="p-4 border rounded-lg bg-white border-gray-200 shadow-sm">
-                    <h4 className="text-sm font-semibold text-slate-600 mb-1.5">Issue Description:</h4>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700 whitespace-pre-line min-h-[100px] max-h-[200px] overflow-y-auto pretty-scrollbar">
+                <div className="p-4 border rounded-lg bg-white">
+                    <h4 className="text-sm font-semibold text-slate-600 mb-1">Initial Description:</h4>
+                    <div className="p-3 bg-slate-100 rounded-md text-sm text-slate-800 whitespace-pre-line">
                         {currentTicket.description}
                     </div>
                 </div>
 
-                <div className="p-4 border rounded-lg bg-white border-gray-200 shadow-sm">
-                    <h4 className="text-sm font-semibold text-slate-600 mb-1.5">Internal Admin Notes:</h4>
-                    <div className="max-h-48 overflow-y-auto space-y-2.5 border p-3 rounded-md bg-slate-50 mb-2.5 pretty-scrollbar">
-                        {(currentTicket.adminNotes && currentTicket.adminNotes.length > 0) ? (
-                            currentTicket.adminNotes.slice().reverse().map((note, index) => (
-                                <div key={index} className="text-xs p-2.5 bg-white border border-slate-200 rounded shadow-sm">
-                                    <p className="text-slate-700 whitespace-pre-line">{note.text}</p>
-                                    <p className="text-slate-500 mt-1.5 text-right text-[11px]">
-                                        - {note.authorName || 'Admin'} on {formatDate(note.timestamp, {month:'short', day:'numeric', year:'2-digit', hour:'2-digit', minute:'2-digit'})}
-                                    </p>
-                                </div>
-                            ))
-                        ) : <p className="text-xs text-slate-500 italic py-2 text-center">No admin notes recorded yet.</p>}
+                <div className="p-4 border rounded-lg bg-white">
+                    <h4 className="text-sm font-semibold text-slate-600 mb-2">Conversation History</h4>
+                    <div className="max-h-60 overflow-y-auto space-y-3 p-3 bg-slate-50 border rounded-md">
+                        {currentTicket.conversation && currentTicket.conversation.length > 0 ? currentTicket.conversation.map((msg, index) => (
+                            <div key={index} className={`p-2.5 rounded-lg ${msg.authorRole === 'admin' ? 'bg-blue-100' : 'bg-green-50'}`}>
+                                <p className="text-xs font-bold text-gray-800">{msg.authorName}</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-line">{msg.text}</p>
+                                <p className="text-right text-xs text-gray-500 mt-1">{formatDate(msg.timestamp)}</p>
+                            </div>
+                        )) : <p className="text-sm text-center text-gray-500 py-4">No replies yet.</p>}
+                        <div ref={conversationEndRef} />
                     </div>
-                    <textarea
-                        value={adminNote}
-                        onChange={(e) => setAdminNote(e.target.value)}
-                        placeholder="Add an internal note (visible to admins only)..."
-                        className={`${commonInputClass} text-xs min-h-[60px]`}
-                        rows="2"
-                        disabled={isAddingNote}
-                    />
-                    <button
-                        onClick={handleAddAdminNote}
-                        className={`${commonButtonClass} bg-sky-600 hover:bg-sky-700 text-white mt-2 text-xs py-1.5 px-3 focus:ring-sky-500`}
-                        disabled={isAddingNote || !adminNote.trim()}
-                    >
-                        {isAddingNote ? <Loader2 size={16} className="animate-spin mr-1.5" /> : <FilePlus size={16} className="mr-1.5" />}
-                        {isAddingNote ? 'Adding Note...' : 'Add Note'}
+                </div>
+
+                <div className="p-4 border rounded-lg bg-white">
+                    <h4 className="text-sm font-semibold text-slate-600 mb-2">Send Reply</h4>
+                    <div className="flex items-center gap-2 mb-2">
+                         <textarea
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder="Type your reply to the customer..."
+                            className={`${commonInputClass} flex-grow`}
+                            rows="3"
+                            disabled={isSendingReply || isAiAssisting}
+                        />
+                         <button onClick={handleAiAssist} className={`${commonButtonClass} bg-purple-100 text-purple-700 hover:bg-purple-200 self-start`} disabled={isAiAssisting || !replyText.trim()} title="Refine reply with AI">
+                            {isAiAssisting ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        </button>
+                    </div>
+                    <button onClick={handleSendReply} className={`${commonButtonClass} bg-blue-600 hover:bg-blue-700 text-white`} disabled={isSendingReply || !replyText.trim()}>
+                        {isSendingReply ? <Loader2 size={18} className="animate-spin mr-2" /> : <Send size={16} className="mr-2" />}
+                        Send Reply
                     </button>
                 </div>
 
-                <div className="p-4 border rounded-lg bg-white border-gray-200 shadow-sm">
+                <div className="p-4 border rounded-lg bg-white">
                     <label htmlFor="ticketStatusUpdate" className="block text-sm font-semibold text-slate-600 mb-1.5">Update Ticket Status:</label>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div className="flex items-center gap-3">
                         <select
                             id="ticketStatusUpdate"
                             value={newStatus}
@@ -237,47 +217,15 @@ const TicketViewModal = ({
                             className={`${commonInputClass} flex-grow`}
                             disabled={isUpdatingStatus}
                         >
-                            {ticketStatusOptions.map(statusOpt => (
-                                <option key={statusOpt} value={statusOpt}>{statusOpt}</option>
-                            ))}
+                            {ticketStatusOptions.map(statusOpt => <option key={statusOpt} value={statusOpt}>{statusOpt}</option>)}
                         </select>
-                        <button
-                            onClick={handleStatusUpdate}
-                            className={`${commonButtonClass} bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 w-full sm:w-auto`}
-                            disabled={isUpdatingStatus || newStatus === currentTicket.status}
-                        >
+                        <button onClick={handleStatusUpdate} className={`${commonButtonClass} bg-green-600 hover:bg-green-700 text-white`} disabled={isUpdatingStatus || newStatus === currentTicket.status}>
                             {isUpdatingStatus ? <Loader2 size={18} className="animate-spin mr-2" /> : <Save size={18} className="mr-2" />}
-                            {isUpdatingStatus ? 'Saving Status...' : 'Update Status'}
+                            Update Status
                         </button>
                     </div>
                 </div>
-
-                <div className="border-t border-gray-200 pt-4 mt-2 flex justify-end">
-                     <button
-                        onClick={onClose}
-                        className={`${commonButtonClass} bg-gray-500 hover:bg-gray-600 text-white focus:ring-gray-400`}
-                    >
-                        Close Ticket View
-                    </button>
-                </div>
             </div>
-             <style jsx global>{`
-                .pretty-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                    height: 6px;
-                }
-                .pretty-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f5f9; /* slate-100 */
-                    border-radius: 10px;
-                }
-                .pretty-scrollbar::-webkit-scrollbar-thumb {
-                    background: #94a3b8; /* slate-400 */
-                    border-radius: 10px;
-                }
-                .pretty-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #64748b; /* slate-500 */
-                }
-            `}</style>
         </Modal>
     );
 };

@@ -1,8 +1,11 @@
-// src/services/geminiService.js
-const GEMINI_API_KEY = "AIzaSyCg7r9RRiCbvUP5BSHdpm3_OPj20vP-VhM";
+const GEMINI_API_KEY = "AIzaSyAx600ru2hfy_h7yq8o2rc2yM-WOg_xvdE";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 export const callGeminiAPI = async (promptText) => {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GOOGLE_GEMINI_API_KEY_HERE") {
+        throw new Error("Gemini API key is missing. Please configure it in geminiService.js.");
+    }
+    
     const payload = {
         contents: [{ parts: [{ text: promptText }] }],
     };
@@ -24,6 +27,10 @@ export const callGeminiAPI = async (promptText) => {
         if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
             return result.candidates[0].content.parts[0].text;
         } else {
+            const reason = result.candidates?.[0]?.finishReason;
+            if (reason === 'SAFETY') {
+                throw new Error("AI response blocked due to safety settings.");
+            }
             throw new Error("Failed to extract text from Gemini API response.");
         }
     } catch (error) {
@@ -32,15 +39,6 @@ export const callGeminiAPI = async (promptText) => {
     }
 };
 
-/**
- * Generates a complete announcement template using structured data.
- * @param {object} details - The details for the announcement.
- * @param {string} details.title - The desired title of the announcement.
- * @param {string} details.reason - The primary reason for the announcement (e.g., "mainline repair").
- * @param {string} [details.area] - The affected area(s).
- * @param {string} [details.time] - The date and time of the event.
- * @returns {Promise<string>} A promise that resolves with the generated announcement content in markdown.
- */
 export const generateAnnouncement = async ({ title, reason, area, time }) => {
     const prompt = `
         You are a professional communications officer for AGWA Water Services.

@@ -1,4 +1,3 @@
-// src/features/customer/CustomerBillsSection.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, DollarSign, Sparkles, Loader2, Info, Eye } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
@@ -30,11 +29,18 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
         setError('');
         const result = await DataService.getBillsForUser(db, user.uid);
         if (result.success) {
-            const billsWithDetails = result.data.map(bill => {
+            const sortedBills = result.data.sort((a, b) => {
+                const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(0);
+                const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(0);
+                return dateB - dateA;
+            });
+            
+            const billsWithDetails = sortedBills.map(bill => {
                 const charges = billingService(bill.consumption, userData.serviceType, userData.meterSize);
                 const totalAmount = charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
                 return { ...bill, amount: totalAmount, calculatedCharges: charges };
-            }).sort((a,b) => (b.billDate?.toDate ? b.billDate.toDate() : 0) - (a.billDate?.toDate ? a.billDate.toDate() : 0));
+            });
+
             setBills(billsWithDetails);
         } else {
             setError(result.error || "Failed to fetch your bills.");

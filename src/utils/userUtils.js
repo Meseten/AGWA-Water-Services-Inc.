@@ -1,12 +1,10 @@
-// src/utils/userUtils.js
-
 export const determineServiceTypeAndRole = (accNum) => {
     if (!accNum || typeof accNum !== 'string') {
         return { serviceType: 'Residential', role: 'customer' };
     }
     const upperAccNum = accNum.toUpperCase().trim();
     if (upperAccNum.startsWith('ADM')) return { serviceType: 'Admin', role: 'admin' };
-    if (upperAccNum.startsWith('PER')) return { serviceType: 'Meter Reading Personnel', role: 'meterReader' };
+    if (upperAccNum.startsWith('PER')) return { serviceType: 'Meter Reading Personnel', role: 'meter_reader' };
     if (upperAccNum.startsWith('CLK')) return { serviceType: 'Clerk Operations', role: 'clerk_cashier' };
     if (upperAccNum.startsWith('RES-LI')) return { serviceType: 'Residential Low-Income', role: 'customer' };
     if (upperAccNum.startsWith('RES')) return { serviceType: 'Residential', role: 'customer' };

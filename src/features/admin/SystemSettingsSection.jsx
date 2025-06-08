@@ -27,7 +27,6 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
     const fetchSettings = useCallback(async () => {
         setIsLoading(true);
         setError('');
-        // DEFINITIVE FIX: Use the correct DataService function that points to the right Firestore path.
         const result = await DataService.getSystemSettings(db);
         if (result.success && result.data) {
             setSettings(prevDefaults => ({
@@ -64,7 +63,6 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
             return;
         }
 
-        // DEFINITIVE FIX: Use the correct DataService function that saves to the right Firestore path.
         const result = await DataService.updateSystemSettings(db, settings);
         if (result.success) {
             showNotification("System settings updated successfully!", "success");

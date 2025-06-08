@@ -1,4 +1,3 @@
-// src/features/meter_reader/AssignedRoutesSection.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Map, ListChecks, UserCircle, Hash, Edit3, Loader2, AlertTriangle, Search, Info, RotateCcw } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -9,13 +8,6 @@ import { formatDate } from '../../utils/userUtils';
 
 const commonInputClass = "w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150 text-sm placeholder-gray-400";
 
-/**
- * AssignedRoutesSection for meter readers to view their assigned routes and accounts.
- * @param {object} props - Component props from DashboardLayout.
- * @param {object} props.db - Firestore instance.
- * @param {object} props.userData - Current meter reader's data (especially userData.uid for fetching routes).
- * @param {function} props.showNotification - Function to display notifications.
- */
 const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification }) => {
     const [routes, setRoutes] = useState([]);
     const [selectedRoute, setSelectedRoute] = useState(null);
@@ -39,12 +31,6 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
         if(showLoadingIndicator) setIsLoadingRoutes(true);
         setFetchRoutesError('');
 
-        // FIRESTORE RULE NEEDED:
-        // A meter reader must have permission to read the 'meter_routes' collection
-        // where their UID matches 'assignedReaderId'.
-        // match /artifacts/{appId}/public/data/meter_routes/{routeId} {
-        //   allow read: if request.auth.uid == resource.data.assignedReaderId;
-        // }
         const result = await DataService.getRoutesForReader(db, meterReaderData.uid);
         if (result.success) {
             const augmentedRoutes = result.data.map(route => ({
@@ -54,17 +40,13 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                 pendingCount: Math.max(0, (route.accountCount || (route.accountNumbers?.length || 0)) - (route.completedReadingsToday || 0))
             }));
             setRoutes(augmentedRoutes.sort((a,b) => (a.name || '').localeCompare(b.name || '')));
-            if (augmentedRoutes.length === 0) {
-                showNotification("No routes are currently assigned to you.", "info");
-            }
         } else {
             const errorMsg = result.error || "Failed to fetch assigned routes.";
             setFetchRoutesError(errorMsg);
-            showNotification(errorMsg, "error");
             setRoutes([]);
         }
         if(showLoadingIndicator) setIsLoadingRoutes(false);
-    }, [db, meterReaderData, showNotification]);
+    }, [db, meterReaderData]);
 
     useEffect(() => {
         fetchAssignedRoutes();
@@ -76,14 +58,6 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
         setIsLoadingAccounts(true);
         setFetchAccountsError('');
 
-        // FIRESTORE RULE NEEDED:
-        // This is the most complex rule. A meter reader needs to read user profiles
-        // based on the account numbers in their route. This is difficult to secure client-side.
-        // A Cloud Function is the recommended secure approach.
-        // A potential (less secure) client-side rule might be:
-        // allow read: if get(/databases/$(database)/documents/artifacts/{appId}/public/data/meter_routes/$(request.resource.data.routeId)).data.assignedReaderId == request.auth.uid;
-        // This would require adding a `routeId` to every user profile, which is not ideal.
-        // Assuming a permissive rule for now and flagging this as a security concern.
         const result = await DataService.getAccountsInRoute(db, route);
         if (result.success) {
             const todayStr = new Date().toISOString().split('T')[0];
@@ -91,16 +65,13 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                 let lastReadingInfo = { readingValue: 'N/A', readingDate: null };
                 let completedToday = false;
 
-                // This is an N+1 query problem, inefficient for large routes.
-                // In a real app, this should be optimized, perhaps by denormalizing
-                // the last reading date onto the user profile document itself.
                 const readingsResult = await DataService.getMeterReadingsForAccount(db, acc.accountNumber);
                 if (readingsResult.success && readingsResult.data.length > 0) {
                     const latestReading = readingsResult.data[0];
                     lastReadingInfo.readingValue = latestReading.readingValue;
                     lastReadingInfo.readingDate = latestReading.readingDate?.toDate ? latestReading.readingDate.toDate() : new Date(latestReading.readingDate);
                     
-                    const readingDateStr = lastReadingInfo.readingDate.toISOString().split('T')[0];
+                    const readingDateStr = latestReading.readingDate.toDate().toISOString().split('T')[0];
                     if (readingDateStr === todayStr) {
                         completedToday = true;
                     }
@@ -113,15 +84,14 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                     readingStatus: completedToday ? 'Completed Today' : 'Pending'
                 };
             }));
-            setAccountsInRoute(accountsWithStatus.sort((a,b) => (a.serviceAddress || '').localeCompare(b.serviceAddress || '')));
+            setAccountsInRoute(accountsWithStatus.sort((a,b) => (a.serviceAddress?.street || '').localeCompare(b.serviceAddress?.street || '')));
         } else {
             const errorMsg = result.error || `Failed to fetch accounts for route ${route.name}.`;
             setFetchAccountsError(errorMsg);
-            showNotification(errorMsg, "error");
             setAccountsInRoute([]);
         }
         setIsLoadingAccounts(false);
-    }, [db, showNotification]);
+    }, [db]);
 
     const handleSelectRoute = (route) => {
         if (selectedRoute?.id === route?.id) return;
@@ -141,7 +111,6 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
     const handleReadingSubmitted = (readingId, submittedData) => {
         showNotification(`Reading for ${submittedData.accountNumber} submitted successfully.`, 'success');
         
-        // Optimistically update the UI to feel responsive
         setAccountsInRoute(prevAccs => prevAccs.map(acc => 
             acc.accountNumber === submittedData.accountNumber 
                 ? { ...acc, readingStatus: 'Completed Today', lastReading: submittedData.readingValue, lastReadingDateDisplay: formatDate(new Date(), {month:'short', day:'numeric'}) } 
@@ -161,7 +130,6 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                 return r;
             });
             setRoutes(updatedRoutes);
-            // Also update the selectedRoute state directly for immediate feedback
             const newSelectedRoute = updatedRoutes.find(r => r.id === selectedRoute.id);
             if (newSelectedRoute) setSelectedRoute(newSelectedRoute);
         }
@@ -169,12 +137,19 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
         setIsReadingModalOpen(false);
         setAccountToRead(null);
     };
+    
+    const formatAddressToString = (addressObj) => {
+        if (!addressObj || typeof addressObj !== 'object') return 'N/A';
+        const parts = [addressObj.street, addressObj.barangay, addressObj.district];
+        return parts.filter(p => p && p.trim()).join(', ');
+    };
 
     const filteredAccounts = accountsInRoute.filter(account => {
         const searchLower = searchTerm.toLowerCase();
+        const addressString = formatAddressToString(account.serviceAddress).toLowerCase();
         return account.displayName?.toLowerCase().includes(searchLower) ||
                account.accountNumber?.toLowerCase().includes(searchLower) ||
-               account.serviceAddress?.toLowerCase().includes(searchLower) ||
+               addressString.includes(searchLower) ||
                account.meterSerialNumber?.toLowerCase().includes(searchLower);
     });
 
@@ -188,7 +163,6 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                 <AlertTriangle size={48} className="mx-auto text-red-400 mb-3" />
                 <p className="text-red-600 text-lg font-semibold">Error Loading Routes</p>
                 <p className="text-sm text-red-500 mt-1">{fetchRoutesError}</p>
-                <p className="text-xs text-gray-500 mt-2">Please check your internet connection or contact your supervisor if this persists. This could be a permissions issue.</p>
             </div>
         );
     }
@@ -214,13 +188,11 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                  <div className="text-center py-10 bg-gray-50 rounded-lg p-4">
                     <Info size={48} className="mx-auto text-gray-400 mb-3" />
                     <p className="text-gray-500 text-lg">No routes are currently assigned to you.</p>
-                    <p className="text-sm text-gray-400 mt-1">Please check back later or contact your supervisor if you believe this is an error.</p>
                 </div>
             )}
 
             {routes.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    {/* Routes List */}
                     <div className="lg:col-span-1 bg-slate-50 p-3.5 rounded-lg shadow-md max-h-[75vh] overflow-y-auto">
                         <h3 className="text-md font-semibold text-slate-700 mb-3 sticky top-0 bg-slate-50 py-2 z-10 border-b border-slate-200">My Routes ({routes.length})</h3>
                         <div className="space-y-2.5">
@@ -249,7 +221,6 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                         </div>
                     </div>
 
-                    {/* Accounts in Selected Route */}
                     <div className="lg:col-span-3">
                         {!selectedRoute && !isLoadingAccounts && (
                              <div className="p-6 text-center text-gray-400 bg-slate-50 rounded-lg shadow-inner h-full flex flex-col justify-center items-center min-h-[300px]">
@@ -284,7 +255,7 @@ const AssignedRoutesSection = ({ db, userData: meterReaderData, showNotification
                                             ${account.readingStatus === 'Completed Today' ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200 hover:border-blue-400'}`}>
                                             <div className="flex-grow mb-2 sm:mb-0">
                                                 <p className="font-medium text-slate-800 text-sm">{account.displayName} <span className="text-xs text-slate-500 font-mono">({account.accountNumber})</span></p>
-                                                <p className="text-xs text-slate-600 mt-0.5">{account.serviceAddress}</p>
+                                                <p className="text-xs text-slate-600 mt-0.5">{formatAddressToString(account.serviceAddress)}</p>
                                                 <p className="text-xs text-slate-500 mt-0.5">Meter: {account.meterSerialNumber} | Last Reading: {account.lastReading || 'N/A'} on {account.lastReadingDateDisplay}</p>
                                                 <p className={`text-xs font-semibold mt-1 ${account.readingStatus === 'Completed Today' ? 'text-green-600' : 'text-orange-600'}`}>
                                                     Status: {account.readingStatus}

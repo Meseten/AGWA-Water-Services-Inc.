@@ -1,20 +1,9 @@
-// src/components/ui/ChatbotModal.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Modal from './Modal';
 import LoadingSpinner from './LoadingSpinner';
 import { Send, Sparkles, MessageSquare, AlertTriangle, FilePlus } from 'lucide-react';
-import { callGeminiAPI } from '../../services/geminiService'; // Assuming geminiService is in services
+import { callGeminiAPI } from '../../services/geminiService'; 
 
-/**
- * ChatbotModal component for interacting with the AGWA AI assistant "Agie".
- *
- * @param {object} props - Component props.
- * @param {boolean} props.isOpen - Whether the modal is open.
- * @param {function} props.onClose - Function to close the modal.
- * @param {object} props.userData - Current logged-in user's data (displayName, accountNumber, serviceType).
- * @param {function} props.showNotification - Function to display notifications.
- * @param {function} props.setActiveDashboardSection - Function to navigate to a dashboard section (e.g., reportIssue).
- */
 const ChatbotModal = ({
     isOpen,
     onClose,
@@ -34,14 +23,12 @@ const ChatbotModal = ({
 
     const chatBodyRef = useRef(null);
 
-    // Scroll to bottom of chat on new message
     useEffect(() => {
         if (chatBodyRef.current) {
             chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
         }
     }, [chatHistory]);
 
-    // Reset chat when modal is opened/closed or user changes
     useEffect(() => {
         if (isOpen) {
             setChatHistory([initialMessage]);
@@ -50,7 +37,6 @@ const ChatbotModal = ({
             setShowCreateTicketButton(false);
             setError('');
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, userData]);
 
 
@@ -60,20 +46,17 @@ const ChatbotModal = ({
 
         const newUserMessage = { role: 'user', text: userInput };
         setChatHistory(prev => [...prev, newUserMessage]);
-        const currentInput = userInput; // Capture before clearing
+        const currentInput = userInput; 
         setUserInput('');
         setIsChatLoading(true);
-        setShowCreateTicketButton(false); // Hide button during new interaction
+        setShowCreateTicketButton(false); 
         setError('');
 
-        // Prepare context for Gemini
         const geminiChatContext = chatHistory.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model', // Gemini uses 'model' for assistant
+            role: msg.role === 'user' ? 'user' : 'model', 
             parts: [{ text: msg.text }]
         }));
-        // Add the new user message to context for the current call
         geminiChatContext.push({role: 'user', parts: [{text: currentInput}]});
-
 
         try {
             const systemPrompt = `You are Agie, the friendly and professional AI assistant for AGWA Water Services, a major water utility provider in the Philippines.
@@ -95,17 +78,10 @@ Your primary goals are:
 10. Keep responses relatively brief and to the point.
 
 Respond to the customer's latest message based on the conversation history.`;
-
-            // The actual prompt to Gemini will be the conversation history.
-            // The system prompt is for context, not directly sent as a user message.
-            // The geminiService function should ideally allow passing a system instruction or prepend it.
-            // For now, we'll prepend it to the user's current input for context.
-            // (This might need adjustment based on how `callGeminiAPI` handles context vs. main prompt)
-
+            
             const fullPromptForGemini = `${systemPrompt}\n\nConversation History:\n${geminiChatContext.slice(0,-1).map(m => `${m.role}: ${m.parts[0].text}`).join("\n")}\n\nNew user message to respond to:\nuser: ${currentInput}`;
 
-
-            const responseText = await callGeminiAPI(fullPromptForGemini); // Pass only the crafted prompt
+            const responseText = await callGeminiAPI(fullPromptForGemini); 
 
             if (responseText.includes("WOULD_YOU_LIKE_A_TICKET?")) {
                 const mainResponse = responseText.replace("WOULD_YOU_LIKE_A_TICKET?", "").trim();
@@ -119,23 +95,21 @@ Respond to the customer's latest message based on the conversation history.`;
             const errorMessage = "I'm currently experiencing some technical difficulties and can't respond right now. Please try again in a few moments. If the issue persists, you might want to report an issue directly through the portal.";
             setChatHistory(prev => [...prev, { role: 'assistant', text: errorMessage }]);
             setError("Failed to get response from assistant.");
-            // showNotification(apiError.message || "Chatbot error. Please try again.", "error");
         } finally {
             setIsChatLoading(false);
         }
     };
 
     const handleCreateTicketFromChat = () => {
-        // Extract a summary or the last few interactions for the ticket description
-        const relevantHistory = chatHistory.slice(-5); // Last 5 messages for context
+        const relevantHistory = chatHistory.slice(-5);
         const chatSummary = relevantHistory.map(msg => `${msg.role === 'user' ? (userData.displayName || 'You') : 'Agie'}: ${msg.text}`).join('\n\n');
         
         localStorage.setItem('chatbotIssueDescription', `Issue raised via Chatbot Agie:\n\n${chatSummary}\n\nInitial User Query (if available):\n${chatHistory.find(m => m.role === 'user')?.text || 'User initiated ticket creation from chat.'}`);
-        localStorage.setItem('chatbotIssueTypeSuggestion', 'Chatbot Assistance Request'); // Or try to infer from chat
+        localStorage.setItem('chatbotIssueTypeSuggestion', 'Chatbot Assistance Follow-up');
 
-        onClose(); // Close chatbot modal
+        onClose(); 
         if (setActiveDashboardSection) {
-            setActiveDashboardSection('reportIssue'); // Navigate to report issue section
+            setActiveDashboardSection('reportIssue');
         }
         showNotification("Please review and submit the support ticket drafted from your chat.", "success");
     };
@@ -149,8 +123,6 @@ Respond to the customer's latest message based on the conversation history.`;
 
     const handleQuickReply = (reply) => {
         setUserInput(reply);
-        // Optionally, auto-submit if desired, or let user press send
-        // For now, just fills the input
     };
 
 
@@ -222,7 +194,7 @@ Respond to the customer's latest message based on the conversation history.`;
                     </div>
                 )}
 
-                {!showCreateTicketButton && quickReplies.length > 0 && (
+                {!showCreateTicketButton && chatHistory.length <= 1 && (
                     <div className="p-2 border-t border-gray-200 bg-white flex flex-wrap gap-2 justify-center">
                         {quickReplies.map(reply => (
                             <button

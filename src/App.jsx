@@ -53,13 +53,16 @@ const App = () => {
             if (docSnap.exists()) {
                 setSystemSettings(docSnap.data());
             }
+        }, (error) => {
+            console.error("Error fetching system settings:", error);
+            showNotification("Could not load system settings.", "warning");
         });
 
         const unsubscribeAuth = onAuthStateChanged(fbAuth, async (user) => {
             setIsLoading(true);
             setAuthError(null);
-            if (user) {
-                try {
+            try {
+                if (user) {
                     const userDocRef = doc(fbDb, userProfileDocumentPath(user.uid));
                     const userDoc = await getDoc(userDocRef);
                     let finalProfileData = null;
@@ -79,29 +82,26 @@ const App = () => {
                     }
                     setAuthUser(user);
                     setUserProfile(finalProfileData);
-                } catch (error) {
-                    setAuthError(error.message);
-                    setAuthUser(user);
+                } else {
+                    setAuthUser(null);
                     setUserProfile(null);
                 }
-            } else {
-                setAuthUser(null);
+            } catch (error) {
+                console.error("Authentication state change error:", error);
+                setAuthError(error.message);
+                setAuthUser(user); 
                 setUserProfile(null);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         });
+
         return () => {
             unsubscribeAuth();
             unsubscribeSettings();
         };
-    }, []);
-
-    useEffect(() => {
-        if (!isLoading) {
-            setCurrentPage(authUser && userProfile ? 'dashboard' : 'login');
-        }
-    }, [isLoading, authUser, userProfile]);
-
+    }, [showNotification]);
+    
     const navigateTo = useCallback((page) => {
         setFormSpecificError('');
         setCurrentPage(page);
@@ -110,10 +110,16 @@ const App = () => {
     const handleAuthAction = async (action, ...args) => {
         setAuthActionLoading(true);
         setFormSpecificError('');
-        const result = await action(fbAuth, ...args);
-        if (!result.success) { setFormSpecificError(result.error); }
-        setAuthActionLoading(false);
-        return result;
+        try {
+            const result = await action(fbAuth, ...args);
+            if (!result.success) { setFormSpecificError(result.error); }
+            return result;
+        } catch(error) {
+            setFormSpecificError("An unexpected error occurred.");
+            return {success: false, error: "An unexpected error occurred."};
+        } finally {
+            setAuthActionLoading(false);
+        }
     };
     
     const handleLogin = (email, password) => handleAuthAction(AuthService.signInWithEmail, email, password);
@@ -177,20 +183,20 @@ const App = () => {
         }
         setAuthActionLoading(false);
     };
-    
+
     if (isLoading) {
         return <PageLoader loadingMessage="Verifying session..." />;
     }
-    
-    if (systemSettings.maintenanceMode && userProfile?.role !== 'admin') {
-        return <MaintenancePage />;
-    }
 
-    if (authUser && !userProfile) {
-         return <PageLoader loadingMessage="Authentication Error" error={authError || "User profile could not be loaded."} />;
-    }
+    if (authUser) {
+        if (!userProfile) {
+            return <PageLoader loadingMessage="Authentication Error" error={authError || "User profile could not be loaded."} />;
+        }
+        
+        if (systemSettings.maintenanceMode && userProfile.role !== 'admin') {
+            return <MaintenancePage />;
+        }
 
-    if (authUser && userProfile) {
         return (
             <>
                 <DashboardLayout

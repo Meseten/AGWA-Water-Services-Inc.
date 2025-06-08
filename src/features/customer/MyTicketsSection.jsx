@@ -1,19 +1,23 @@
-// src/features/customer/MyTicketsSection.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Clock, AlertTriangle, CheckCircle, Info, RotateCcw, Loader2, Eye } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { MessageSquare, Clock, AlertTriangle, CheckCircle, Info, RotateCcw, Loader2, Eye, Send, Sparkles } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import * as DataService from '../../services/dataService.js';
 import { formatDate } from '../../utils/userUtils.js';
+import { Timestamp } from 'firebase/firestore';
+import { callGeminiAPI } from '../../services/geminiService.js';
+import Tooltip from '../../components/ui/Tooltip.jsx';
 
-const MyTicketsSection = ({ db, user, showNotification }) => {
+const MyTicketsSection = ({ db, user, userData, showNotification }) => {
     const [tickets, setTickets] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const [replyText, setReplyText] = useState({});
+    const [isSendingReply, setIsSendingReply] = useState(null);
+    const [isAiAssisting, setIsAiAssisting] = useState(null);
 
     const fetchTickets = useCallback(async () => {
         setIsLoading(true);
         setError('');
-        // This query is now allowed by the new firestore.rules
         const result = await DataService.getTicketsByReporter(db, user.uid);
         if (result.success) {
             setTickets(result.data);
@@ -27,6 +31,55 @@ const MyTicketsSection = ({ db, user, showNotification }) => {
     useEffect(() => {
         fetchTickets();
     }, [fetchTickets]);
+
+    const handleReplyChange = (ticketId, text) => {
+        setReplyText(prev => ({ ...prev, [ticketId]: text }));
+    };
+
+    const handleSendReply = async (ticketId) => {
+        const text = replyText[ticketId];
+        if (!text || !text.trim()) {
+            showNotification("Reply cannot be empty.", "warning");
+            return;
+        }
+        setIsSendingReply(ticketId);
+        const replyData = {
+            text: text,
+            authorId: user.uid,
+            authorName: userData.displayName,
+            authorRole: userData.role,
+            timestamp: Timestamp.fromDate(new Date()),
+        };
+
+        const result = await DataService.addTicketReply(db, ticketId, replyData);
+        if (result.success) {
+            showNotification("Reply sent successfully!", "success");
+            setReplyText(prev => ({ ...prev, [ticketId]: '' }));
+            fetchTickets(); 
+        } else {
+            showNotification(result.error || "Failed to send reply.", "error");
+        }
+        setIsSendingReply(null);
+    };
+
+    const handleAiAssist = async (ticketId) => {
+        const currentReply = replyText[ticketId] || '';
+        if (!currentReply.trim()) {
+            showNotification("Please write a draft or some keywords for the AI to assist with.", "warning");
+            return;
+        }
+        setIsAiAssisting(ticketId);
+        try {
+            const prompt = `You are helping a customer write a formal reply to a support ticket. Refine the following draft to be clear, polite, and concise. Do not add any extra commentary. Just provide the refined message.\n\nMy draft: "${currentReply}"`;
+            const assistedReply = await callGeminiAPI(prompt);
+            handleReplyChange(ticketId, assistedReply);
+            showNotification("AI has refined your reply!", "success");
+        } catch (error) {
+            showNotification(error.message || "AI assistance failed.", "error");
+        } finally {
+            setIsAiAssisting(null);
+        }
+    };
     
     const getStatusPillClass = (status) => {
         switch (status) {
@@ -76,15 +129,55 @@ const MyTicketsSection = ({ db, user, showNotification }) => {
                                 {ticket.status}
                             </span>
                         </summary>
-                        <div className="mt-4 pt-3 border-t border-gray-200 text-sm text-gray-700 space-y-2">
-                           <p><strong>Description:</strong> {ticket.description}</p>
-                           {ticket.adminNotes && ticket.adminNotes.length > 0 && (
-                               <div className="p-2 bg-blue-50 border border-blue-200 rounded-md">
-                                   <p className="font-semibold text-xs text-blue-700">Admin Response:</p>
-                                   <p className="text-xs">{ticket.adminNotes[ticket.adminNotes.length - 1].text}</p>
-                                   <p className="text-right text-xs text-gray-500 mt-1">- {ticket.adminNotes[ticket.adminNotes.length - 1].authorName} on {formatDate(ticket.adminNotes[ticket.adminNotes.length - 1].timestamp)}</p>
+                        <div className="mt-4 pt-3 border-t border-gray-200 text-sm text-gray-700 space-y-3">
+                           <div>
+                                <strong className="text-xs text-gray-500">Your Initial Report:</strong>
+                                <p className="p-2 bg-white border rounded-md whitespace-pre-line text-xs">{ticket.description}</p>
+                           </div>
+                           {(ticket.conversation && ticket.conversation.length > 0) && (
+                               <div className="space-y-2">
+                                   <strong className="text-xs text-gray-500">Conversation History:</strong>
+                                   <div className="max-h-60 overflow-y-auto space-y-2 border bg-white p-2 rounded-md">
+                                        {ticket.conversation.map((msg, index) => (
+                                            <div key={index} className={`p-2 rounded-lg text-xs ${msg.authorRole === 'admin' ? 'bg-blue-50' : 'bg-green-50'}`}>
+                                                <p className="font-bold text-gray-800">{msg.authorName}:</p>
+                                                <p className="text-sm text-gray-700 whitespace-pre-line">{msg.text}</p>
+                                                <p className="text-right text-gray-500 mt-1">{formatDate(msg.timestamp)}</p>
+                                            </div>
+                                        ))}
+                                   </div>
                                </div>
                            )}
+                           <div className="pt-2">
+                                <label className="text-xs font-semibold text-gray-600">Send a Reply:</label>
+                                <div className="flex items-start gap-2">
+                                    <textarea
+                                        value={replyText[ticket.id] || ''}
+                                        onChange={(e) => handleReplyChange(ticket.id, e.target.value)}
+                                        placeholder="Type your reply..."
+                                        className="w-full p-2 border rounded-md text-sm flex-grow"
+                                        rows="3"
+                                    />
+                                    <Tooltip text="Type a draft first, then use AI to refine it.">
+                                        <button 
+                                            onClick={() => handleAiAssist(ticket.id)}
+                                            className="p-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            disabled={isAiAssisting === ticket.id || !(replyText[ticket.id] || '').trim()}
+                                            title="Refine reply with AI"
+                                        >
+                                            {isAiAssisting === ticket.id ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                                        </button>
+                                    </Tooltip>
+                                </div>
+                               <button 
+                                   onClick={() => handleSendReply(ticket.id)}
+                                   className="mt-2 w-full sm:w-auto flex items-center justify-center bg-blue-600 text-white font-semibold py-2 px-4 rounded-md text-xs hover:bg-blue-700 disabled:opacity-60"
+                                   disabled={isSendingReply === ticket.id || !(replyText[ticket.id] || '').trim()}
+                                >
+                                    {isSendingReply === ticket.id ? <Loader2 size={14} className="animate-spin mr-2" /> : <Send size={14} className="mr-2"/>}
+                                    Send Reply
+                                </button>
+                           </div>
                         </div>
                     </details>
                 ))}

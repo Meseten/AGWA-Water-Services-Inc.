@@ -1,23 +1,12 @@
-// src/features/customer/CustomerDashboardMain.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { ShieldCheck, DollarSign, UserCircle, Home, CreditCard, AlertTriangle, Sparkles, FileText, Loader2, Info } from "lucide-react";
-import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx"; // Corrected Path
+import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx";
 import Modal from "../../components/ui/Modal.jsx";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
 import * as DataService from "../../services/dataService.js";
 import { callGeminiAPI } from "../../services/geminiService.js";
 import { formatDate } from "../../utils/userUtils.js";
 
-/**
- * CustomerDashboardMain - Main dashboard view for customers.
- * @param {object} props - Component props from DashboardLayout.
- * @param {object} props.user - Firebase auth user object.
- * @param {object} props.userData - Customer's profile data.
- * @param {object} props.db - Firestore instance.
- * @param {function} props.showNotification - Function to display notifications.
- * @param {function} props.setActiveSection - Function to navigate to other sections.
- * @param {function} props.billingService - The calculateBillDetails function.
- */
 const CustomerDashboardMain = ({ user, userData, db, showNotification, setActiveSection, billingService: calculateBillDetails }) => {
     const [recentBills, setRecentBills] = useState([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
@@ -25,7 +14,6 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
 
     const [currentBalance, setCurrentBalance] = useState(0);
     const [nextDueDate, setNextDueDate] = useState('');
-    // Removed unused state: const [oldestUnpaidBill, setOldestUnpaidBill] = useState(null); 
 
     const [waterSavingTips, setWaterSavingTips] = useState('');
     const [isLoadingTips, setIsLoadingTips] = useState(false);
@@ -43,7 +31,7 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
             const billsResult = await DataService.getBillsForUser(db, user.uid);
             if (billsResult.success) {
                 const billsWithCalculatedAmounts = billsResult.data.map(bill => {
-                    const charges = calculateBillDetails(bill.consumption, userData.serviceType, userData.meterSize, userData.systemSettings || {}); // Pass systemSettings
+                    const charges = calculateBillDetails(bill.consumption, userData.serviceType, userData.meterSize, userData.systemSettings || {});
                     const totalAmountDue = charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
                     return { ...bill, amount: totalAmountDue, calculatedCharges: charges, billDateTimestamp: bill.billDate?.toDate ? bill.billDate.toDate() : new Date(bill.billDate) };
                 }).sort((a, b) => b.billDateTimestamp - a.billDateTimestamp);
@@ -54,11 +42,9 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
                 if (unpaidBills.length > 0) {
                     const sortedUnpaidBills = unpaidBills.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
                     const oldestDueBill = sortedUnpaidBills[0];
-                    // setOldestUnpaidBill(oldestDueBill); // This state was unused
                     setCurrentBalance(oldestDueBill.amount);
                     setNextDueDate(oldestDueBill.dueDate);
                 } else {
-                    // setOldestUnpaidBill(null); // This state was unused
                     setCurrentBalance(0);
                     setNextDueDate('');
                 }
@@ -85,7 +71,7 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
         setWaterSavingTips('');
         try {
             const serviceArea = userData.serviceAddress ? `for a household in ${userData.serviceAddress.split(',').pop().trim()}` : 'for a household';
-            const prompt = `Provide 5 concise, actionable, and practical water saving tips for a ${userData.serviceType || 'Residential'} customer in the Philippines ${serviceArea}. Format them as a numbered list, each tip on a new line. Make them easy to understand.`;
+            const prompt = `You are Agie, a friendly and knowledgeable water conservation expert from AGWA. Provide a mix of 8-10 engaging items for a customer. Include practical water-saving tips, surprising water trivia/facts, and at least one local-context tip for the Philippines. Format them as a fun, easy-to-read list using markdown (e.g., using emojis like 💧 or ✨, and bolding for emphasis).`;
             const tips = await callGeminiAPI(prompt);
             setWaterSavingTips(tips);
         } catch (error) {
