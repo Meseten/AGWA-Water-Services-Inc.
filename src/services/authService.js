@@ -80,27 +80,15 @@ export const handleSignInWithEmailLink = async (authInstance, email, href) => {
 
 let phoneConfirmationResult = null;
 
-export const setupRecaptcha = (authInstance, containerId) => {
-    try {
-        const recaptchaVerifier = new RecaptchaVerifier(authInstance, containerId, {
-            'size': 'invisible',
-            'callback': (response) => console.log("reCAPTCHA solved:", response),
-            'expired-callback': () => console.warn("reCAPTCHA expired")
-        });
-        return recaptchaVerifier.render().then(() => recaptchaVerifier);
-    } catch (error) {
-        console.error("Error setting up reCAPTCHA:", error);
-        return Promise.reject(formatAuthError(error));
-    }
-};
-
 export const sendOtpToPhoneService = async (authInstance, phoneNumber, appVerifier) => {
     try {
         const E164FormatNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
         phoneConfirmationResult = await signInWithPhoneNumber(authInstance, E164FormatNumber, appVerifier);
         return { success: true, message: "OTP sent successfully!" };
     } catch (error) {
-        if (appVerifier && appVerifier.clear) appVerifier.clear();
+        if (appVerifier && typeof appVerifier.clear === 'function') {
+             appVerifier.clear();
+        }
         return { success: false, error: formatAuthError(error) };
     }
 };

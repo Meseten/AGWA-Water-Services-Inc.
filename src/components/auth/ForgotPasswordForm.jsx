@@ -1,4 +1,3 @@
-// src/components/auth/ForgotPasswordForm.jsx
 import React, { useState } from 'react';
 import { Mail, Loader2, ArrowLeft } from 'lucide-react';
 import { commonInputClass, commonButtonClass } from '../../styles/authFormStyles.js';

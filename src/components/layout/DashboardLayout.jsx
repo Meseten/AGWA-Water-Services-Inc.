@@ -27,8 +27,10 @@ import SearchAccountOrBillSection from '../../features/clerk_cashier/SearchAccou
 import MyTicketsSection from '../../features/customer/MyTicketsSection.jsx';
 import NotFound from '../core/NotFound.jsx';
 import ChatbotModal from '../ui/ChatbotModal.jsx';
+import LinkAccountModal from '../auth/LinkAccountModal.jsx';
 import { MessageSquare as ChatIcon } from 'lucide-react';
 import * as billingService from '../../services/billingService.js';
+import * as dataService from '../../services/dataService.js';
 import * as userUtils from '../../utils/userUtils.js';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { systemSettingsDocumentPath } from '../../firebase/firestorePaths.js';
@@ -37,7 +39,18 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
     const [activeSection, setActiveSection] = useState('mainDashboard');
     const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
     const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+    const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+    const [isLinking, setIsLinking] = useState(false);
+    const [linkError, setLinkError] = useState('');
     const [banner, setBanner] = useState(null);
+
+    useEffect(() => {
+        if (userData && !userData.accountNumber) {
+            setIsLinkModalOpen(true);
+        } else {
+            setIsLinkModalOpen(false);
+        }
+    }, [userData]);
 
     useEffect(() => {
         if (!db) return;
@@ -60,6 +73,26 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
     const handleNavigate = (section) => {
         setActiveSection(section);
         if (isSidebarOpenMobile) setIsSidebarOpenMobile(false);
+    };
+
+    const handleLinkAccount = async (accountNumber) => {
+        setIsLinking(true);
+        setLinkError('');
+        const result = await dataService.linkAccountNumberToProfile(db, user.uid, accountNumber);
+        if (result.success) {
+            const { role, serviceType } = userUtils.determineServiceTypeAndRole(accountNumber);
+            setUserData(prevData => ({
+                ...prevData,
+                accountNumber: accountNumber.toUpperCase(),
+                role,
+                serviceType
+            }));
+            setIsLinkModalOpen(false);
+            showNotification("Account linked successfully!", "success");
+        } else {
+            setLinkError(result.error || "Failed to link account. Please check the account number and try again.");
+        }
+        setIsLinking(false);
     };
 
     const navItems = [
@@ -141,21 +174,31 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
                     </div>
                 </main>
             </div>
-            <button
-                onClick={() => setIsChatbotOpen(true)}
-                className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transform hover:scale-110 transition-all duration-200 ease-in-out z-50"
-                aria-label="Open Chatbot"
-            >
-                <ChatIcon size={28} />
-            </button>
-            {isChatbotOpen && (
-                <ChatbotModal 
-                    isOpen={isChatbotOpen}
-                    onClose={() => setIsChatbotOpen(false)}
-                    userData={userData}
-                    showNotification={showNotification}
-                    setActiveDashboardSection={handleNavigate}
-                />
+            {userData && (
+                <>
+                    <button
+                        onClick={() => setIsChatbotOpen(true)}
+                        className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transform hover:scale-110 transition-all duration-200 ease-in-out z-50"
+                        aria-label="Open Chatbot"
+                    >
+                        <ChatIcon size={28} />
+                    </button>
+                    {isChatbotOpen && (
+                        <ChatbotModal 
+                            isOpen={isChatbotOpen}
+                            onClose={() => setIsChatbotOpen(false)}
+                            userData={userData}
+                            showNotification={showNotification}
+                            setActiveDashboardSection={handleNavigate}
+                        />
+                    )}
+                    <LinkAccountModal 
+                        isOpen={isLinkModalOpen}
+                        onLink={handleLinkAccount}
+                        isLinking={isLinking}
+                        error={linkError}
+                    />
+                </>
             )}
         </div>
     );

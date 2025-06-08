@@ -1,4 +1,3 @@
-// src/services/geoService.js
 
 const qcDistricts = {
     "District 1": ["Alicia", "Bago Bantay", "Bagong Pag-asa", "Bungad", "Damar", "Damayan", "Del Monte", "Katipunan", "Mariblo", "Masambong", "N.S. Amoranto", "Paltok", "Paraiso", "Phil-Am", "Project 6", "Ramon Magsaysay", "Saint Peter", "San Antonio", "San Isidro Labrador", "San Jose", "Santa Cruz", "Santa Teresita", "Siena", "Talayan", "Vasra", "Veterans Village", "West Triangle"],

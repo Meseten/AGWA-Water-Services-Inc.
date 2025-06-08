@@ -1,21 +1,18 @@
-// src/components/ui/Notification.jsx
 import React, { useEffect } from 'react';
 import { CheckCircle, AlertTriangle, X } from 'lucide-react';
 
-// Memoized for performance if props don't change often
 export const Notification = React.memo(({ message, type, onClose }) => {
   useEffect(() => {
-    // Auto close after 5 seconds
     if (!message) return;
     const timer = setTimeout(() => {
       onClose();
     }, 5000);
     return () => clearTimeout(timer);
-  }, [onClose, message, type]); // Re-run effect if message or type changes to reset timer
+  }, [onClose, message, type]);
 
   if (!message) return null;
 
-  let bgColorClass = 'bg-red-500'; // Default to error
+  let bgColorClass = 'bg-red-500';
   let IconComponent = AlertTriangle;
 
   if (type === 'success') {
@@ -26,7 +23,7 @@ export const Notification = React.memo(({ message, type, onClose }) => {
     IconComponent = AlertTriangle;
   } else if (type === 'info') {
     bgColorClass = 'bg-blue-500';
-    IconComponent = AlertTriangle; // Or a specific Info icon
+    IconComponent = AlertTriangle;
   }
 
   return (
@@ -62,5 +59,4 @@ export const Notification = React.memo(({ message, type, onClose }) => {
   );
 });
 
-// To prevent display name lint error
 Notification.displayName = 'Notification';

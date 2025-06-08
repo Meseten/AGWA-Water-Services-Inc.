@@ -1,4 +1,3 @@
-// src/features/common/FaqsSection.jsx
 import React from 'react';
 import { HelpCircle, ChevronDown, ShieldQuestion } from 'lucide-react';
 

@@ -2,14 +2,14 @@ import React from 'react';
 import { Edit2, Trash2, Eye, EyeOff, Info as InfoIcon, Loader2 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; // For tables, strikethrough etc.
+import remarkGfm from 'remark-gfm';
 
 const ViewAnnouncements = ({ announcements, onEdit, onDelete, onToggleStatus, actionLoadingId, viewOnly = false }) => {
 
     const formatDate = (timestamp) => {
         if (!timestamp) return 'N/A';
         let date;
-        if (timestamp.toDate && typeof timestamp.toDate === 'function') { // Firestore Timestamp
+        if (timestamp.toDate && typeof timestamp.toDate === 'function') {
             date = timestamp.toDate();
         } else if (timestamp instanceof Date) {
             date = timestamp;
@@ -74,7 +74,6 @@ const ViewAnnouncements = ({ announcements, onEdit, onDelete, onToggleStatus, ac
                             </div>
                         )}
                     </div>
-                    {/* DEFINITIVE FIX: Use ReactMarkdown to correctly render markdown content (e.g., bold text). */}
                     <div className="prose prose-sm max-w-none text-gray-700 mt-3 pt-3 border-t border-gray-200/80 leading-relaxed">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {ann.content}

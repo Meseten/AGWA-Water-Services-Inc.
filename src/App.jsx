@@ -55,7 +55,6 @@ const App = () => {
             }
         }, (error) => {
             console.error("Error fetching system settings:", error);
-            showNotification("Could not load system settings.", "warning");
         });
 
         const unsubscribeAuth = onAuthStateChanged(fbAuth, async (user) => {
@@ -64,21 +63,32 @@ const App = () => {
             try {
                 if (user) {
                     const userDocRef = doc(fbDb, userProfileDocumentPath(user.uid));
-                    const userDoc = await getDoc(userDocRef);
+                    let userDoc = await getDoc(userDocRef);
                     let finalProfileData = null;
+
                     if (userDoc.exists()) {
                         finalProfileData = { uid: user.uid, ...userDoc.data() };
-                    } else if (localStorage.getItem('signupDisplayName')) {
-                        const displayName = localStorage.getItem('signupDisplayName') || user.displayName;
+                    } else {
+                        const displayName = localStorage.getItem('signupDisplayName') || user.displayName || user.email || user.phoneNumber || 'New User';
                         const accountNumber = localStorage.getItem('signupAccountNumber') || '';
                         const { role, serviceType } = determineServiceTypeAndRole(accountNumber);
-                        const profileData = { email: user.email, displayName, accountNumber, role, serviceType, accountStatus: 'Active', photoURL: user.photoURL || '' };
+                        
+                        const profileData = { 
+                            email: user.email || '',
+                            phoneNumber: user.phoneNumber || '',
+                            displayName: displayName, 
+                            accountNumber: accountNumber, 
+                            role: role, 
+                            serviceType: serviceType, 
+                            accountStatus: 'Active', 
+                            photoURL: user.photoURL || '' 
+                        };
+                        
                         await createUserProfile(fbDb, user.uid, profileData);
                         finalProfileData = { uid: user.uid, ...profileData };
+                        
                         localStorage.removeItem('signupDisplayName');
                         localStorage.removeItem('signupAccountNumber');
-                    } else {
-                        throw new Error("Your account is authenticated, but your user profile could not be found. Please contact support.");
                     }
                     setAuthUser(user);
                     setUserProfile(finalProfileData);
@@ -144,7 +154,7 @@ const App = () => {
         return result.success;
     };
     const handlePasswordlessSignIn = async (email) => {
-        const actionCodeSettings = { url: window.location.origin, handleCodeInApp: true };
+        const actionCodeSettings = { url: window.location.href, handleCodeInApp: true };
         const result = await handleAuthAction(AuthService.sendSignInEmailLinkService, email, actionCodeSettings);
         if(result.success) showNotification(result.message, "success");
         return result;
@@ -183,6 +193,23 @@ const App = () => {
         }
         setAuthActionLoading(false);
     };
+    
+    useEffect(() => {
+        const handleSignIn = async () => {
+            if (AuthService.isSignInWithEmailLink(fbAuth, window.location.href)) {
+                let email = window.localStorage.getItem('emailForSignIn');
+                if (!email) {
+                    email = window.prompt('Please provide your email for confirmation');
+                }
+                if(email){
+                    await handleAuthAction(AuthService.handleSignInWithEmailLink, email, window.location.href);
+                } else {
+                     showNotification("Email is required to complete sign-in.", "error");
+                }
+            }
+        };
+        handleSignIn();
+    }, [showNotification]);
 
     if (isLoading) {
         return <PageLoader loadingMessage="Verifying session..." />;
@@ -190,7 +217,7 @@ const App = () => {
 
     if (authUser) {
         if (!userProfile) {
-            return <PageLoader loadingMessage="Authentication Error" error={authError || "User profile could not be loaded."} />;
+            return <PageLoader loadingMessage="Finalizing Account Setup..." error={authError} />;
         }
         
         if (systemSettings.maintenanceMode && userProfile.role !== 'admin') {

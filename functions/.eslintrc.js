@@ -9,13 +9,13 @@ module.exports = {
     "google",
   ],
   parserOptions: {
-    ecmaVersion: 2020, // Use a modern ECMAScript version
+    ecmaVersion: 2020,
   },
   rules: {
     "quotes": ["error", "double"],
     "indent": ["error", 2],
     "object-curly-spacing": ["error", "always"],
-    "require-jsdoc": "off", // Optional: Turn off the requirement for JSDoc comments
-    "max-len": ["error", { "code": 120 }], // Optional: Increase max line length
+    "require-jsdoc": "off",
+    "max-len": ["error", { "code": 120 }],
   },
 };

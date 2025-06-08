@@ -1,27 +1,18 @@
-// src/features/admin/SupportTicketManagementSection.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Eye, Loader2, Filter, AlertTriangle, CheckCircle, RotateCcw, Info } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
-import TicketViewModal from './TicketViewModal.jsx'; // Import the new modal
+import TicketViewModal from './TicketViewModal.jsx';
 import * as DataService from '../../services/dataService.js';
 import { formatDate } from '../../utils/userUtils.js';
 
-/**
- * SupportTicketManagementSection for admins to view and manage support tickets.
- * @param {object} props - Component props from DashboardLayout.
- * @param {object} props.db - Firestore instance.
- * @param {string} props.appId - Application ID.
- * @param {object} props.userData - Current admin's user data (passed as adminUserData to modal).
- * @param {function} props.showNotification - Function to display notifications.
- */
 const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, showNotification }) => {
     const [tickets, setTickets] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [viewingTicket, setViewingTicket] = useState(null); // Ticket object for TicketViewModal
+    const [viewingTicket, setViewingTicket] = useState(null);
     
-    const [filterStatus, setFilterStatus] = useState(""); // "Open", "In Progress", etc.
+    const [filterStatus, setFilterStatus] = useState("");
     const [filterIssueType, setFilterIssueType] = useState("");
-    const [searchTerm, setSearchTerm] = useState(""); // For searching by Ticket ID, User Name, Email, Account Number
+    const [searchTerm, setSearchTerm] = useState("");
 
     const commonSelectClass = "w-full sm:w-auto text-sm px-3 py-2 rounded-md bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150";
     const commonInputClass = `${commonSelectClass} placeholder-gray-400`;
@@ -29,21 +20,19 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
 
     const fetchTickets = useCallback(async () => {
         setIsLoading(true);
-        // DataService.getAllSupportTickets can be enhanced to accept filters directly
-        // For now, client-side filtering after fetching all or based on primary status filter if service supports it
-        const result = await DataService.getAllSupportTickets(db, filterStatus || null); // Pass primary status filter if service supports it
+        const result = await DataService.getAllSupportTickets(db, filterStatus || null);
         if (result.success) {
-            setTickets(result.data); // Already sorted by submittedAt desc in service
+            setTickets(result.data);
         } else {
             showNotification(result.error || "Failed to fetch support tickets.", "error");
             setTickets([]);
         }
         setIsLoading(false);
-    }, [db, showNotification, filterStatus]); // filterStatus added as dependency
+    }, [db, showNotification, filterStatus]);
 
     useEffect(() => {
         fetchTickets();
-    }, [fetchTickets]); // fetchTickets itself depends on filterStatus, so this covers it.
+    }, [fetchTickets]);
 
     const handleOpenTicketViewModal = (ticket) => {
         setViewingTicket(ticket);
@@ -54,17 +43,12 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
     };
 
     const handleTicketUpdateInModal = (updatedTicket) => {
-        // Update the ticket in the main list locally for immediate UI feedback
         setTickets(prevTickets =>
             prevTickets.map(t => (t.id === updatedTicket.id ? updatedTicket : t))
         );
-        // Optionally, could re-fetch all tickets if there are complex side-effects,
-        // but local update is often sufficient for status/note changes.
-        // fetchTickets();
     };
 
     const getStatusColor = (status) => {
-        // (Same getStatusColor function as in TicketViewModal for consistency)
         switch (status) {
             case 'Open': return 'bg-red-100 text-red-700';
             case 'In Progress': return 'bg-yellow-100 text-yellow-700';
@@ -76,7 +60,6 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
         }
     };
 
-    // Client-side filtering logic (can be expanded)
     const filteredTickets = tickets.filter(ticket => {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearchTerm = searchTerm ? (
@@ -117,7 +100,6 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
                 </button>
             </div>
             
-            {/* Filters */}
             <div className="mb-5 p-4 bg-gray-50 rounded-lg shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
                 <div>
                     <label htmlFor="searchTerm" className="block text-xs font-medium text-gray-600 mb-1">Search Tickets</label>

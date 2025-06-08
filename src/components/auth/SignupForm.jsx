@@ -1,4 +1,3 @@
-// src/components/auth/SignupForm.jsx
 import React, { useState } from 'react';
 import { Mail, KeyRound, Eye, EyeOff, UserCircle, Hash, Loader2 } from 'lucide-react';
 import { commonInputClass, commonButtonClass, googleButtonClass } from '../../styles/authFormStyles.js';

@@ -1,4 +1,3 @@
-// src/components/auth/LoginForm.jsx
 import React, { useState } from 'react';
 import { Mail, KeyRound, Eye, EyeOff, Loader2, Link as LinkIcon, PhoneCall } from 'lucide-react';
 import { commonInputClass, commonButtonClass, googleButtonClass, linkButtonClass, phoneButtonClass } from '../../styles/authFormStyles.js';

@@ -1,6 +1,5 @@
-// src/features/common/AboutUsSection.jsx
 import React from 'react';
-import { Info, UserCircle, ShieldCheck, Sparkles, Gauge, Users, Target, Eye, Building2 } from 'lucide-react'; // Added Target, Eye, Building2
+import { Info, UserCircle, ShieldCheck, Sparkles, Gauge, Users, Target, Eye, Building2 } from 'lucide-react';
 
 const AboutUsSection = () => {
     const crestItems = [

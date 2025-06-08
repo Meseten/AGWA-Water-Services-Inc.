@@ -1,4 +1,3 @@
-// src/components/core/ErrorBoundary.jsx
 import React from 'react';
 import { AlertOctagon, RefreshCw } from 'lucide-react';
 

@@ -1,19 +1,6 @@
-// src/components/ui/Modal.jsx
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-/**
- * A reusable, styled modal component.
- * @param {object} props - Component props.
- * @param {boolean} props.isOpen - Whether the modal is open.
- * @param {function} props.onClose - Function to call when the modal should close.
- * @param {string} [props.title=''] - The title of the modal.
- * @param {React.ReactNode} props.children - The content to display within the modal.
- * @param {string} [props.size='md'] - Size of the modal ('sm', 'md', 'lg', 'xl', '2xl', '3xl', 'full').
- * @param {boolean} [props.hideCloseButton=false] - If true, hides the 'X' close button.
- * @param {string} [props.modalDialogClassName=''] - Additional classes for the modal dialog box itself.
- * @param {string} [props.contentClassName=''] - Additional classes for the content area.
- */
 const Modal = React.memo(({
     isOpen,
     onClose,
@@ -35,7 +22,7 @@ const Modal = React.memo(({
         "3xl": "max-w-3xl",
         "4xl": "max-w-4xl",
         "5xl": "max-w-5xl",
-        full: "max-w-full h-full rounded-none sm:rounded-lg", // Fullscreen with rounded corners on larger screens
+        full: "max-w-full h-full rounded-none sm:rounded-lg", 
     };
 
     useEffect(() => {
@@ -50,7 +37,6 @@ const Modal = React.memo(({
         };
     }, [onClose]);
 
-    // Prevent body scroll when modal is open
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';

@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar.jsx
 import React from 'react';
 import {
     Home, UserCog, FileText, AlertTriangle, Users, MessageSquare, Settings, HelpCircle, Info, PhoneCall,

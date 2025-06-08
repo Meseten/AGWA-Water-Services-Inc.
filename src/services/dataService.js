@@ -15,11 +15,51 @@ import {
     meterRoutesCollectionPath
 } from '../firebase/firestorePaths.js'; 
 import * as billingService from './billingService.js';
+import { determineServiceTypeAndRole } from '../utils/userUtils.js';
 
 const handleFirestoreError = (functionName, error) => {
     console.error(`Firestore Error in ${functionName}:`, error.code, error.message);
     const userFriendlyMessage = `An error occurred in ${functionName}. Code: ${error.code}. Please check Firestore rules and indexes. If the error is 'failed-precondition', you likely need to create a database index in the Firebase console.`;
     return { success: false, error: userFriendlyMessage };
+};
+
+export const linkAccountNumberToProfile = async (dbInstance, userId, accountNumber) => {
+    if (!accountNumber || !userId) {
+        return { success: false, error: "User ID and Account Number are required." };
+    }
+
+    try {
+        const upperCaseAccountNumber = accountNumber.toUpperCase();
+        const profilesRef = collection(dbInstance, profilesCollectionPath());
+        const q = query(profilesRef, where("accountNumber", "==", upperCaseAccountNumber));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            return { success: false, error: "This Account Number was not found in our records. Please check and try again." };
+        }
+
+        const masterAccountDoc = snapshot.docs[0];
+        const masterAccountData = masterAccountDoc.data();
+
+        if (masterAccountData.uid && masterAccountData.uid !== userId) {
+            return { success: false, error: "This account is already linked to another user. Please contact support." };
+        }
+        
+        const { role, serviceType } = determineServiceTypeAndRole(upperCaseAccountNumber);
+
+        const profileUpdates = {
+            accountNumber: upperCaseAccountNumber,
+            role,
+            serviceType,
+            meterSerialNumber: masterAccountData.meterSerialNumber || '',
+            serviceAddress: masterAccountData.serviceAddress || { street: '', barangay: '', district: '', landmark: '' }
+        };
+        
+        return await updateUserProfile(dbInstance, userId, profileUpdates);
+
+    } catch (error) {
+        return handleFirestoreError('linkAccountNumberToProfile', error);
+    }
 };
 
 export const getUniqueServiceLocations = async (dbInstance) => {

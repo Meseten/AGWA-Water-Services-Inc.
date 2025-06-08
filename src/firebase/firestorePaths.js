@@ -1,4 +1,3 @@
-// src/firebase/firestorePaths.js
 
 export const APP_ID_FOR_FIRESTORE_PATHS = 'c_0e480e34ffaa3f81_agwa_water_services_app-268';
 
@@ -11,11 +10,9 @@ export const getAppId = () => {
 
 const appId = getAppId();
 
-// User Data Paths
 export const usersCollectionPath = () => `artifacts/${appId}/users`;
 export const userProfileDocumentPath = (userId) => `${usersCollectionPath()}/${userId}/profile/data`;
 
-// Public Data Paths
 export const publicDataCollectionPath = () => `artifacts/${appId}/public/data`;
 export const profilesCollectionPath = () => `${publicDataCollectionPath()}/profiles`;
 export const supportTicketsCollectionPath = () => `${publicDataCollectionPath()}/support_tickets`;

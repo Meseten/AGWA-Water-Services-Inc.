@@ -4,7 +4,6 @@ import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
 import * as DataService from "../../services/dataService.js";
 
-// DEFINITIVE FIX: Component now receives props from DashboardLayout instead of using a hook.
 const AdminDashboardMain = ({ user, userData, db, showNotification, setActiveSection }) => {
     const [dashboardStats, setDashboardStats] = useState({
         totalUsers: 0,

@@ -1,4 +1,3 @@
-// src/features/admin/AnnouncementForm.jsx
 import React, { useState, useEffect } from 'react';
 import { Loader2, Save, Sparkles, AlertCircle, Type, CalendarDays, CheckSquare, XSquare, MessageSquare, MapPin, Clock } from 'lucide-react';
 import { callGeminiAPI, generateAnnouncement } from '../../services/geminiService.js';
@@ -13,7 +12,6 @@ const AnnouncementForm = ({ initialData = null, onSubmit, onCancel, isSaving, sh
     const [endDate, setEndDate] = useState('');
     const [targetRoles, setTargetRoles] = useState(['all']);
     
-    // New state for the AI Wizard
     const [aiReason, setAiReason] = useState('');
     const [aiArea, setAiArea] = useState('');
     const [aiTime, setAiTime] = useState('');
@@ -85,7 +83,7 @@ const AnnouncementForm = ({ initialData = null, onSubmit, onCancel, isSaving, sh
             });
             setContent(generatedContent);
             if (!title && aiReason) {
-                setTitle(aiReason); // Populate title if empty
+                setTitle(aiReason);
             }
             showNotification("AI has generated an announcement template for you!", "success");
         } catch (error) {
@@ -124,7 +122,6 @@ const AnnouncementForm = ({ initialData = null, onSubmit, onCancel, isSaving, sh
 
     return (
         <div className="p-1 flex flex-col lg:flex-row gap-8">
-            {/* Left side - AI Wizard and Main Form */}
             <div className="lg:w-1/2 space-y-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {formError && (
@@ -178,7 +175,6 @@ const AnnouncementForm = ({ initialData = null, onSubmit, onCancel, isSaving, sh
                 </form>
             </div>
             
-            {/* Right side - AI Wizard */}
             <div className="lg:w-1/2 p-6 bg-blue-50 border border-blue-200 rounded-lg space-y-6">
                  <h3 className="text-lg font-semibold text-blue-800 flex items-center"><Sparkles size={20} className="mr-2"/> AI Announcement Wizard</h3>
                  <p className="text-sm text-blue-700">Fill in the details below and let AI generate a complete, professional announcement for you. It will populate the 'Content' field on the left.</p>
@@ -202,7 +198,6 @@ const AnnouncementForm = ({ initialData = null, onSubmit, onCancel, isSaving, sh
                 </button>
             </div>
 
-            {/* Bottom buttons */}
             <div className="lg:col-span-2 w-full pt-6 border-t mt-6 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
                  <button type="button" onClick={onCancel} className={`${commonButtonClass} bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 focus:ring-gray-300 w-full sm:w-auto order-2 sm:order-1`} disabled={isSaving || isAiGenerating || isAiAssisting}>Cancel</button>
                  <button type="submit" form="announcementForm" onClick={handleSubmit} className={`${commonButtonClass} bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 w-full sm:w-auto order-1 sm:order-2`} disabled={isSaving || isAiGenerating || isAiAssisting || !title || !content}>

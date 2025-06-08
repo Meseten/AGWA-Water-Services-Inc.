@@ -1,6 +1,5 @@
-// src/components/ui/PageLoader.jsx
 import React from 'react';
-import { Loader2 } from 'lucide-react'; // Using lucide-react for spinner
+import { Loader2 } from 'lucide-react';
 
 const PageLoader = ({ message = "Loading..." }) => {
   return (

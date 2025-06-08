@@ -1,23 +1,7 @@
-// src/components/ui/ConfirmationModal.jsx
 import React from 'react';
 import Modal from './Modal'; // Assuming Modal.jsx is in the same directory
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
-/**
- * A modal for confirming actions (e.g., delete, proceed).
- * @param {object} props - Component props.
- * @param {boolean} props.isOpen - Whether the modal is open.
- * @param {function} props.onClose - Function to close the modal.
- * @param {function} props.onConfirm - Function to execute on confirmation.
- * @param {string} props.title - The title of the modal.
- * @param {React.ReactNode} props.children - The content/message of the modal.
- * @param {string} [props.confirmText='Confirm'] - Text for the confirm button.
- * @param {string} [props.cancelText='Cancel'] - Text for the cancel button.
- * @param {string} [props.confirmButtonClass='bg-red-600 hover:bg-red-700'] - Tailwind class for confirm button (default danger).
- * @param {string} [props.cancelButtonClass='bg-gray-200 hover:bg-gray-300 text-gray-800'] - Tailwind class for cancel button.
- * @param {string} [props.iconType='warning'] - 'warning', 'success', or 'danger' for the icon.
- * @param {boolean} [props.isConfirming=false] - If true, shows a loading state on the confirm button.
- */
 const ConfirmationModal = ({
     isOpen,
     onClose,
@@ -28,7 +12,7 @@ const ConfirmationModal = ({
     cancelText = 'Cancel',
     confirmButtonClass = 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
     cancelButtonClass = 'bg-gray-200 hover:bg-gray-300 text-gray-700 focus:ring-gray-400',
-    iconType = 'warning', // 'warning', 'success', 'danger'
+    iconType = 'warning', 
     isConfirming = false,
 }) => {
     if (!isOpen) return null;

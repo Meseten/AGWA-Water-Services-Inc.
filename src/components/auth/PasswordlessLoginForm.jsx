@@ -1,4 +1,3 @@
-// src/components/auth/PasswordlessLoginForm.jsx
 import React, { useState } from 'react';
 import { Mail, Link as LinkIcon, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import { commonInputClass, linkButtonClass } from '../../styles/authFormStyles.js';

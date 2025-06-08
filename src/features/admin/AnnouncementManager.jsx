@@ -7,7 +7,6 @@ import ConfirmationModal from '../../components/ui/ConfirmationModal.jsx';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import * as DataService from '../../services/dataService.js';
 
-// DEFINITIVE FIX: Component now receives props instead of using a hook.
 const AnnouncementManager = ({ db, userData, showNotification, viewOnly = false }) => {
   const [announcements, setAnnouncements] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -1,4 +1,3 @@
-// src/services/billingService.js
 
 /**
  * Calculates detailed water bill charges based on consumption, service type, and meter size.
@@ -19,7 +18,7 @@ export const calculateBillDetails = (
     consumption,
     serviceType,
     meterSize = '1/2"',
-    systemSettingsInput = {} // Accept system settings as a parameter
+    systemSettingsInput = {}
 ) => {
     let basicCharge = 0;
     let fcda = 0;
@@ -32,12 +31,11 @@ export const calculateBillDetails = (
 
     const cons = parseFloat(consumption) || 0;
 
-    // Use provided system settings or defaults if not available
     const defaultSettings = {
         fcdaPercentage: 1.29,
         environmentalChargePercentage: 25,
-        sewerageChargePercentageCommercial: 32.85, // For Commercial/Industrial
-        governmentTaxPercentage: 2, // Local Franchise Tax
+        sewerageChargePercentageCommercial: 32.85,
+        governmentTaxPercentage: 2,
         vatPercentage: 12,
     };
 
@@ -50,7 +48,6 @@ export const calculateBillDetails = (
     const vatRate = (settings.vatPercentage || defaultSettings.vatPercentage) / 100;
 
 
-    // Maintenance Service Charge (remains based on meter size)
     const meterSizeCleaned = String(meterSize).replace(/["“”]/g, '').trim();
     if (meterSizeCleaned === '1/2' || meterSizeCleaned === '15mm') maintenanceServiceCharge = 1.50;
     else if (meterSizeCleaned === '3/4' || meterSizeCleaned === '20mm') maintenanceServiceCharge = 2.00;

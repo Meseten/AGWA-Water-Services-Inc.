@@ -1,4 +1,3 @@
-// src/hooks/useFirestoreQuery.js
 import { useState, useEffect, useCallback } from 'react';
 import {
     doc,
@@ -8,7 +7,7 @@ import {
     query,
     where,
     orderBy,
-    limit as firestoreLimit, // Renamed to avoid conflict
+    limit as firestoreLimit,
     onSnapshot
 } from 'firebase/firestore';
 
@@ -39,7 +38,7 @@ function useFirestoreQuery(
         }
 
         try {
-            if (docId) { // Fetching a single document
+            if (docId) {
                 const docRef = doc(firestoreInstance, path, docId);
                 if (listen) {
                     const unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -61,7 +60,7 @@ function useFirestoreQuery(
                         setIsLoading(false);
                     }
                 }
-            } else { // Fetching a collection
+            } else {
                 const collectionRef = collection(firestoreInstance, path);
                 const q = query(collectionRef, ...(Array.isArray(queryConstraints) ? queryConstraints : []));
 
@@ -94,7 +93,6 @@ function useFirestoreQuery(
                 setIsLoading(false);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [firestoreInstance, path, docId, listen, JSON.stringify(queryConstraints), ...dependencies]);
 
 

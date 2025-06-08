@@ -1,16 +1,5 @@
-// src/components/ui/Tooltip.jsx
 import React, { useState } from 'react';
 
-/**
- * A simple, reusable Tooltip component.
- *
- * @param {object} props - Component props.
- * @param {React.ReactNode} props.children - The element that triggers the tooltip on hover/focus.
- * @param {string} props.text - The text content of the tooltip.
- * @param {'top' | 'bottom' | 'left' | 'right'} [props.position='top'] - Position of the tooltip relative to the child.
- * @param {string} [props.className=''] - Additional Tailwind classes for the tooltip bubble itself.
- * @param {number} [props.delay=100] - Delay in milliseconds before showing the tooltip.
- */
 const Tooltip = ({ children, text, position = 'top', className = '', delay = 100 }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [timeoutId, setTimeoutId] = useState(null);
@@ -44,16 +33,16 @@ const Tooltip = ({ children, text, position = 'top', className = '', delay = 100
         right: 'absolute top-1/2 -translate-y-1/2 right-full h-0 w-0 border-y-4 border-y-transparent border-r-4 border-r-gray-800',
     };
 
-    if (!text) return <>{children}</>; // Don't render tooltip if no text
+    if (!text) return <>{children}</>;
 
     return (
         <div
             className="relative inline-flex"
             onMouseEnter={showTooltip}
             onMouseLeave={hideTooltip}
-            onFocus={showTooltip} // For accessibility with keyboard navigation
+            onFocus={showTooltip}
             onBlur={hideTooltip}
-            tabIndex={0} // Make the div focusable if children isn't inherently
+            tabIndex={0}
         >
             {children}
             {isVisible && (
