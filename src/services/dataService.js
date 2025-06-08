@@ -23,6 +23,34 @@ const handleFirestoreError = (functionName, error) => {
     return { success: false, error: userFriendlyMessage };
 };
 
+const deleteAllFromCollection = async (dbInstance, collectionPath) => {
+    try {
+        const snapshot = await getDocs(collection(dbInstance, collectionPath));
+        const batchSize = 500;
+        let i = 0;
+        let batch = writeBatch(dbInstance);
+        for (const doc of snapshot.docs) {
+            batch.delete(doc.ref);
+            i++;
+            if (i % batchSize === 0) {
+                await batch.commit();
+                batch = writeBatch(dbInstance);
+            }
+        }
+        if (i % batchSize !== 0) {
+            await batch.commit();
+        }
+        return { success: true, count: i };
+    } catch (error) {
+        return handleFirestoreError(`deleteAllFromCollection: ${collectionPath}`, error);
+    }
+};
+
+export const deleteAllTickets = (dbInstance) => deleteAllFromCollection(dbInstance, supportTicketsCollectionPath());
+export const deleteAllBills = (dbInstance) => deleteAllFromCollection(dbInstance, allBillsCollectionPath());
+export const deleteAllReadings = (dbInstance) => deleteAllFromCollection(dbInstance, allMeterReadingsCollectionPath());
+export const deleteAllAnnouncements = (dbInstance) => deleteAllFromCollection(dbInstance, announcementsCollectionPath());
+
 export const linkAccountNumberToProfile = async (dbInstance, userId, accountNumber) => {
     if (!accountNumber || !userId) {
         return { success: false, error: "User ID and Account Number are required." };
@@ -472,6 +500,15 @@ export const createSupportTicket = async (dbInstance, ticketData) => {
         return { success: true, id: docRef.id };
     } catch (error) {
         return handleFirestoreError('createSupportTicket', error);
+    }
+};
+
+export const deleteSupportTicket = async (dbInstance, ticketId) => {
+    try {
+        await deleteDoc(doc(dbInstance, supportTicketDocumentPath(ticketId)));
+        return { success: true };
+    } catch (error) {
+        return handleFirestoreError('deleteSupportTicket', error);
     }
 };
 

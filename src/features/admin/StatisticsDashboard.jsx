@@ -6,7 +6,13 @@ import * as DataService from "../../services/dataService.js";
 import { db } from "../../firebase/firebaseConfig.js";
 
 const Chart = ({ data, title, formatLabel, dataKey, color = "bg-blue-500", hoverColor = "hover:bg-blue-600" }) => {
-    if(!data || Object.keys(data).length === 0) return <div className="p-4 bg-gray-50 rounded-lg border text-center text-sm text-gray-500">{title} - No data available.</div>;
+    if(!data || Object.keys(data).length === 0) {
+        return (
+            <div className="w-full p-4 bg-gray-50 rounded-lg border flex items-center justify-center h-full min-h-[262px]">
+                <p className="text-sm text-gray-500">{title} - No data available.</p>
+            </div>
+        );
+    }
 
     const values = Object.values(data);
     const maxValue = Math.max(...values, 1);
@@ -68,7 +74,7 @@ const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [db]);
+    }, []);
 
     useEffect(() => {
         fetchStatistics();
@@ -142,7 +148,7 @@ const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
                     <div className="print-section">
                         <h3 className="text-xl font-semibold text-gray-800 mb-4 mt-8 pt-6 border-t flex items-center"><Calendar size={22} className="mr-2 text-teal-600"/>User & Payment Patterns</h3>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                           <Chart data={stats?.paymentDayStats} title="Peak Payment Days (By Day of Week)" dataKey="count" color="bg-teal-500" hoverColor="hover:bg-teal-600" formatLabel={(key) => key}/>
+                           <Chart data={stats?.paymentDayStats} title="Peak Payment Days (By # of Payments)" dataKey="count" color="bg-teal-500" hoverColor="hover:bg-teal-600" formatLabel={(key) => key}/>
                            {stats?.usersByRole && (
                                 <div className="p-4 bg-gray-50 rounded-lg border">
                                     <h4 className="text-md font-semibold text-gray-700 mb-3">Users by Role</h4>

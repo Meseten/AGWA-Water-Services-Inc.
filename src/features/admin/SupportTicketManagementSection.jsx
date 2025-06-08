@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Eye, Loader2, Filter, AlertTriangle, CheckCircle, RotateCcw, Info } from 'lucide-react';
+import { MessageSquare, Eye, Loader2, Filter, AlertTriangle, RotateCcw, Info, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import TicketViewModal from './TicketViewModal.jsx';
+import ConfirmationModal from '../../components/ui/ConfirmationModal.jsx';
 import * as DataService from '../../services/dataService.js';
 import { formatDate } from '../../utils/userUtils.js';
 
@@ -9,6 +10,8 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
     const [tickets, setTickets] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [viewingTicket, setViewingTicket] = useState(null);
+    const [ticketToDelete, setTicketToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     const [filterStatus, setFilterStatus] = useState("");
     const [filterIssueType, setFilterIssueType] = useState("");
@@ -20,7 +23,7 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
 
     const fetchTickets = useCallback(async () => {
         setIsLoading(true);
-        const result = await DataService.getAllSupportTickets(db, filterStatus || null);
+        const result = await DataService.getAllSupportTickets(db);
         if (result.success) {
             setTickets(result.data);
         } else {
@@ -28,7 +31,7 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
             setTickets([]);
         }
         setIsLoading(false);
-    }, [db, showNotification, filterStatus]);
+    }, [db, showNotification]);
 
     useEffect(() => {
         fetchTickets();
@@ -46,6 +49,20 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
         setTickets(prevTickets =>
             prevTickets.map(t => (t.id === updatedTicket.id ? updatedTicket : t))
         );
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!ticketToDelete) return;
+        setIsDeleting(true);
+        const result = await DataService.deleteSupportTicket(db, ticketToDelete.id);
+        if (result.success) {
+            showNotification("Support ticket deleted successfully.", "success");
+            fetchTickets(); // Re-fetch the list after deletion
+        } else {
+            showNotification(result.error || "Failed to delete ticket.", "error");
+        }
+        setIsDeleting(false);
+        setTicketToDelete(null);
     };
 
     const getStatusColor = (status) => {
@@ -77,7 +94,6 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
     });
     
     const uniqueIssueTypes = Array.from(new Set(tickets.map(t => t.issueType))).sort();
-
 
     if (isLoading && tickets.length === 0) {
         return <LoadingSpinner message="Loading support tickets..." className="mt-10 h-64" />;
@@ -128,18 +144,12 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
                 </div>
             </div>
 
-
-            {isLoading && tickets.length > 0 && <LoadingSpinner message="Refreshing tickets..." className="my-4" />}
-
             {!isLoading && filteredTickets.length === 0 && (
                 <div className="text-center py-10">
                     <Info size={48} className="mx-auto text-gray-400 mb-3" />
                     <p className="text-gray-500 text-lg">
                         {tickets.length === 0 ? "No support tickets found in the system." : "No tickets match your current filters."}
                     </p>
-                    {(tickets.length > 0 && (filterStatus || filterIssueType || searchTerm)) &&
-                        <button onClick={() => {setFilterStatus(''); setFilterIssueType(''); setSearchTerm('');}} className="mt-3 text-sm text-blue-600 hover:underline">Clear Filters</button>
-                    }
                 </div>
             )}
 
@@ -170,13 +180,20 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
                                         </span>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap text-gray-500">{formatDate(ticket.lastUpdatedAt || ticket.lastUpdatedByAdmin || ticket.submittedAt, { month: 'short', day: 'numeric', hour:'2-digit', minute:'2-digit' })}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                                    <td className="px-4 py-3 whitespace-nowrap text-center space-x-2">
                                         <button
                                             onClick={() => handleOpenTicketViewModal(ticket)}
                                             className="text-indigo-600 hover:text-indigo-800 p-1.5 rounded-md hover:bg-indigo-50 transition-colors"
                                             title="View & Manage Ticket"
                                         >
                                             <Eye size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => setTicketToDelete(ticket)}
+                                            className="text-red-600 hover:text-red-800 p-1.5 rounded-md hover:bg-red-50 transition-colors"
+                                            title="Delete Ticket"
+                                        >
+                                            <Trash2 size={18} />
                                         </button>
                                     </td>
                                 </tr>
@@ -197,6 +214,21 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
                     showNotification={showNotification}
                     onTicketUpdate={handleTicketUpdateInModal}
                 />
+            )}
+
+            {ticketToDelete && (
+                <ConfirmationModal
+                    isOpen={!!ticketToDelete}
+                    onClose={() => setTicketToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title="Confirm Ticket Deletion"
+                    confirmText="Yes, Delete Ticket"
+                    isConfirming={isDeleting}
+                    iconType="danger"
+                >
+                    <p>Are you sure you want to permanently delete ticket <strong>{ticketToDelete.id.substring(0,8)}...</strong>?</p>
+                    <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                </ConfirmationModal>
             )}
         </div>
     );

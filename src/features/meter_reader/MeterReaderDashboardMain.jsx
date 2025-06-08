@@ -98,10 +98,10 @@ const MeterReaderDashboardMain = ({ userData, db, showNotification, setActiveSec
             {error && <p className="text-sm text-yellow-600 bg-yellow-50 p-3 rounded-md text-center my-4 flex items-center justify-center gap-2"><Info size={16}/> {error}</p>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                <DashboardInfoCard title="Assigned Routes" value={dashboardStats.assignedRoutesCount} icon={Map} borderColor="border-blue-500" iconColor="text-blue-500" />
-                <DashboardInfoCard title="Pending Readings" value={dashboardStats.pendingReadingsInRoutes} icon={ListFilter} borderColor="border-orange-500" iconColor="text-orange-500" subtext={`Across ${dashboardStats.totalAccountsInRoutes} total accounts`} />
+                <DashboardInfoCard title="Assigned Routes" value={dashboardStats.assignedRoutesCount} icon={Map} borderColor="border-blue-500" iconColor="text-blue-500" onClick={() => setActiveSection('assignedRoutes')} />
+                <DashboardInfoCard title="Pending Readings" value={dashboardStats.pendingReadingsInRoutes} icon={ListFilter} borderColor="border-orange-500" iconColor="text-orange-500" subtext={`Across ${dashboardStats.totalAccountsInRoutes} total accounts`} onClick={() => setActiveSection('assignedRoutes')} />
                 <DashboardInfoCard title="Readings Done Today" value={dashboardStats.readingsCompletedToday} icon={CheckCircle} borderColor="border-green-500" iconColor="text-green-500" />
-                <DashboardInfoCard title="My Reported Issues" value={dashboardStats.issuesReportedByMe} icon={AlertTriangle} borderColor="border-red-500" iconColor="text-red-500" />
+                <DashboardInfoCard title="My Reported Issues" value={dashboardStats.issuesReportedByMe} icon={AlertTriangle} borderColor="border-red-500" iconColor="text-red-500" onClick={() => setActiveSection('myTickets')} />
             </div>
 
             <div>
