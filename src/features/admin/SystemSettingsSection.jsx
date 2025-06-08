@@ -19,7 +19,6 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         governmentTaxPercentage: 2.0,
         vatPercentage: 12.0,
         maintenanceMode: false,
-        defaultBillingCycleStartDay: 1,
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -37,8 +36,8 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
                 ...prevDefaults,
                 ...result.data
             }));
-        } else if (result.error) {
-            setError("Failed to load system settings. Default values are shown.");
+        } else {
+            setError("Could not load existing settings. Default values are shown. Click 'Save' to create the settings document.");
         }
         setIsLoading(false);
     }, []);
@@ -68,7 +67,7 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         }
         setIsSaving(false);
     };
-
+    
     const handleClearData = async () => {
         if (!confirmAction) return;
 
@@ -107,14 +106,17 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         { name: 'portalAnnouncement', label: 'Portal-Wide Announcement Banner Text', type: 'textarea', icon: Megaphone, rows: 3 },
         { name: 'isBannerEnabled', label: 'Enable Announcement Banner', type: 'checkbox', icon: Megaphone },
         { name: 'latePaymentPenaltyPercentage', label: 'Late Payment Penalty (%)', type: 'number', icon: Clock },
+        { name: 'fcdaPercentage', label: 'FCDA (%)', type: 'number', icon: Percent },
+        { name: 'environmentalChargePercentage', label: 'Environmental Charge (%)', type: 'number', icon: Percent },
+        { name: 'vatPercentage', label: 'VAT (%)', type: 'number', icon: Percent },
         { name: 'maintenanceMode', label: 'Enable Portal Maintenance Mode', type: 'checkbox', icon: AlertTriangle },
     ];
     
     const dangerZoneActions = [
-        { label: 'Clear All Support Tickets', action: 'tickets', color: 'red' },
-        { label: 'Clear All Bills', action: 'bills', color: 'red' },
-        { label: 'Clear All Meter Readings', action: 'readings', color: 'red' },
-        { label: 'Clear All Announcements', action: 'announcements', color: 'orange' },
+        { label: 'Clear All Support Tickets', action: 'tickets' },
+        { label: 'Clear All Bills', action: 'bills' },
+        { label: 'Clear All Meter Readings', action: 'readings' },
+        { label: 'Clear All Announcements', action: 'announcements' },
     ];
 
     if (isLoading) {
@@ -130,7 +132,7 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
             </div>
 
             {error && (
-                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm flex items-center">
+                <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-lg text-sm flex items-center">
                     <AlertTriangle size={20} className="mr-2" /> {error}
                 </div>
             )}
@@ -149,7 +151,7 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
                             ) : field.type === 'checkbox' ? (
                                 <label className="flex items-center space-x-3 cursor-pointer p-2">
                                     <input type="checkbox" name={field.name} checked={!!settings[field.name]} onChange={handleChange} className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"/>
-                                    <span className="text-sm text-gray-600 select-none">{field.info || 'Enable/Disable'}</span>
+                                    <span className="text-sm text-gray-600 select-none">Enable/Disable</span>
                                 </label>
                             ) : (
                                 <input type={field.type} name={field.name} value={settings[field.name] ?? ''} onChange={handleChange} className={commonInputClass} step="0.01" />
