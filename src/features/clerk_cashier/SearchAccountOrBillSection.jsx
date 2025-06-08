@@ -73,7 +73,6 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
             }
         } catch (err) {
             setError("An error occurred during the search.");
-            showNotification("An error occurred during search.", "error");
         }
         setIsLoading(false);
     };
@@ -81,6 +80,12 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
     const handleViewInvoice = (bill, userForInvoice) => {
         setViewingInvoice(bill);
         setInvoiceUserData(userForInvoice || (searchedData && searchType === 'account' ? searchedData : null));
+    };
+
+    const formatAddressToString = (addressObj) => {
+        if (!addressObj || typeof addressObj !== 'object') return addressObj || 'N/A';
+        const parts = [addressObj.street, addressObj.barangay, addressObj.district, "Quezon City"];
+        return parts.filter(p => p && p.trim()).join(', ');
     };
 
     const InfoRow = ({ label, value, icon: Icon, valueClass = "text-gray-800" }) => (
@@ -155,7 +160,7 @@ const SearchAccountOrBillSection = ({ db, showNotification, billingService: calc
                                 <InfoRow label="Account No" value={searchedData.accountNumber} icon={Hash} valueClass="font-mono"/>
                                 <InfoRow label="Email" value={searchedData.email} icon={Mail} />
                                 <InfoRow label="Status" value={searchedData.accountStatus} icon={Info} valueClass={`font-semibold ${searchedData.accountStatus === 'Active' ? 'text-green-600' : 'text-red-600'}`} />
-                                <InfoRow label="Service Address" value={searchedData.serviceAddress} icon={MapPin} />
+                                <InfoRow label="Service Address" value={formatAddressToString(searchedData.serviceAddress)} icon={MapPin} />
                             </div>
                             <h4 className="text-md font-semibold text-indigo-600 mt-4 mb-2">Recent Bills ({userBills.length})</h4>
                             {userBills.length > 0 ? (
