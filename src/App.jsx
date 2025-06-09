@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth as fbAuth, db as fbDb } from './firebase/firebaseConfig';
@@ -14,7 +14,6 @@ import LoginForm from './components/auth/LoginForm.jsx';
 import SignupForm from './components/auth/SignupForm.jsx';
 import ForgotPasswordForm from './components/auth/ForgotPasswordForm.jsx';
 import PasswordlessLoginForm from './components/auth/PasswordlessLoginForm.jsx';
-import PhoneLoginForm from './components/auth/PhoneLoginForm.jsx';
 import DashboardLayout from './components/layout/DashboardLayout.jsx';
 import { HardHat } from 'lucide-react';
 import './index.css';
@@ -38,7 +37,6 @@ const App = () => {
     const [formSpecificError, setFormSpecificError] = useState('');
     const [currentPage, setCurrentPage] = useState('login');
     const [notification, setNotification] = useState({ message: '', type: '' });
-    const recaptchaVerifierRef = useRef(null);
 
     const showNotification = useCallback((message, type = 'error') => {
         setNotification({ message, type });
@@ -69,7 +67,7 @@ const App = () => {
                     if (userDoc.exists()) {
                         finalProfileData = { uid: user.uid, ...userDoc.data() };
                     } else {
-                        const displayName = localStorage.getItem('signupDisplayName') || user.displayName || user.email || user.phoneNumber || 'New User';
+                        const displayName = localStorage.getItem('signupDisplayName') || user.displayName || user.email || 'New User';
                         const accountNumber = localStorage.getItem('signupAccountNumber') || '';
                         const { role, serviceType } = determineServiceTypeAndRole(accountNumber);
                         
@@ -84,7 +82,11 @@ const App = () => {
                             photoURL: user.photoURL || '' 
                         };
                         
-                        await createUserProfile(fbDb, user.uid, profileData);
+                        const creationResult = await createUserProfile(fbDb, user.uid, profileData);
+                        if (!creationResult.success) {
+                            throw new Error(creationResult.error || "Failed to create user profile in the database.");
+                        }
+                        
                         finalProfileData = { uid: user.uid, ...profileData };
                         
                         localStorage.removeItem('signupDisplayName');
@@ -159,40 +161,6 @@ const App = () => {
         if(result.success) showNotification(result.message, "success");
         return result;
     };
-    const handleSendOtp = async (phoneNumber, onOtpSentUiCallback) => {
-        setAuthActionLoading(true);
-        setFormSpecificError('');
-        try {
-            if (recaptchaVerifierRef.current) { recaptchaVerifierRef.current.clear(); }
-            const appVerifier = await AuthService.setupRecaptcha(fbAuth, 'recaptcha-container');
-            recaptchaVerifierRef.current = appVerifier;
-            const result = await AuthService.sendOtpToPhoneService(fbAuth, phoneNumber, appVerifier);
-            if (result.success) {
-                showNotification(result.message, "success");
-                if (onOtpSentUiCallback) onOtpSentUiCallback();
-            } else {
-                setFormSpecificError(result.error);
-            }
-             return result;
-        } catch (error) {
-            setFormSpecificError(AuthService.formatAuthError(error));
-             return { success: false, error: AuthService.formatAuthError(error) };
-        } finally {
-            setAuthActionLoading(false);
-        }
-    };
-    const handleVerifyOtp = async (otp, onVerificationFailedUiCallback) => {
-        setAuthActionLoading(true);
-        setFormSpecificError('');
-        const result = await AuthService.verifyOtpAndSignInService(otp);
-        if (result.success) {
-            showNotification("Phone sign-in successful!", "success");
-        } else {
-            setFormSpecificError(result.error);
-            if (onVerificationFailedUiCallback) onVerificationFailedUiCallback();
-        }
-        setAuthActionLoading(false);
-    };
     
     useEffect(() => {
         const handleSignIn = async () => {
@@ -245,7 +213,6 @@ const App = () => {
         signup: <SignupForm handleSignupExternal={handleSignup} handleGoogleSignIn={handleGoogleSignIn} navigateTo={navigateTo} authActionLoading={authActionLoading} setAuthError={setFormSpecificError} showNotification={showNotification}/>,
         forgotPassword: <ForgotPasswordForm handleForgotPasswordExternal={handleForgotPassword} navigateTo={navigateTo} authActionLoading={authActionLoading} />,
         passwordlessLogin: <PasswordlessLoginForm handlePasswordlessSignInExternal={handlePasswordlessSignIn} navigateTo={navigateTo} authActionLoading={authActionLoading} />,
-        phoneLogin: <PhoneLoginForm handleSendOtpExternal={handleSendOtp} handleVerifyOtpExternal={handleVerifyOtp} navigateTo={navigateTo} authActionLoading={authActionLoading} setAuthErrorExt={setFormSpecificError} />,
     };
 
     return (

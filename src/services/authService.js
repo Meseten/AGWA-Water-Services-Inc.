@@ -8,8 +8,6 @@ import {
     sendSignInLinkToEmail,
     isSignInWithEmailLink,
     signInWithEmailLink,
-    RecaptchaVerifier,
-    signInWithPhoneNumber,
     updateProfile as updateFirebaseProfile,
 } from 'firebase/auth';
 
@@ -76,34 +74,6 @@ export const handleSignInWithEmailLink = async (authInstance, email, href) => {
         }
     }
     return { success: false, error: "Not a valid sign-in-with-email-link request." };
-};
-
-let phoneConfirmationResult = null;
-
-export const sendOtpToPhoneService = async (authInstance, phoneNumber, appVerifier) => {
-    try {
-        const E164FormatNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-        phoneConfirmationResult = await signInWithPhoneNumber(authInstance, E164FormatNumber, appVerifier);
-        return { success: true, message: "OTP sent successfully!" };
-    } catch (error) {
-        if (appVerifier && typeof appVerifier.clear === 'function') {
-             appVerifier.clear();
-        }
-        return { success: false, error: formatAuthError(error) };
-    }
-};
-
-export const verifyOtpAndSignInService = async (otp) => {
-    if (!phoneConfirmationResult) {
-        return { success: false, error: "OTP confirmation result not available. Please request OTP first." };
-    }
-    try {
-        const userCredential = await phoneConfirmationResult.confirm(otp);
-        phoneConfirmationResult = null;
-        return { success: true, userCredential };
-    } catch (error) {
-        return { success: false, error: formatAuthError(error) };
-    }
 };
 
 export const sendPasswordResetService = async (authInstance, email) => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, KeyRound, Eye, EyeOff, Loader2, Link as LinkIcon, PhoneCall } from 'lucide-react';
-import { commonInputClass, commonButtonClass, googleButtonClass, linkButtonClass, phoneButtonClass } from '../../styles/authFormStyles.js';
+import { Mail, KeyRound, Eye, EyeOff, Loader2, Link as LinkIcon } from 'lucide-react';
+import { commonInputClass, commonButtonClass, googleButtonClass, linkButtonClass } from '../../styles/authFormStyles.js';
 
 const LoginForm = ({
     navigateTo,
@@ -80,10 +80,6 @@ const LoginForm = ({
             <button type="button" onClick={() => navigateTo('passwordlessLogin')} className={linkButtonClass} disabled={authActionLoading}>
                 <LinkIcon size={18} className="mr-2"/>
                 <span>Sign in with Email Link</span>
-            </button>
-            <button type="button" onClick={() => navigateTo('phoneLogin')} className={phoneButtonClass} disabled={authActionLoading}>
-                <PhoneCall size={18} className="mr-2"/>
-                <span>Sign in with Phone</span>
             </button>
             <div className="text-sm text-center mt-5 space-y-1.5">
                 <p className="text-gray-600">
