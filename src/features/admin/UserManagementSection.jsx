@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Edit3, Users, Search, Filter, Loader2, AlertTriangle, ShieldCheck, UserCheck, UserX, RotateCcw, Info } from "lucide-react";
+import { Edit3, Users, Search, Filter, Loader2, AlertTriangle, ShieldCheck, UserCheck, UserX, RotateCcw, Info, Trash2 } from "lucide-react";
 import UserEditModal from "./UserEditModal.jsx";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
 import ConfirmationModal from "../../components/ui/ConfirmationModal.jsx";
@@ -8,13 +8,14 @@ import { formatDate } from "../../utils/userUtils.js";
 
 const commonInputClass = "w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150 text-sm placeholder-gray-400";
 
-const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRole }) => {
+const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRole, userData: adminUserData }) => {
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingUser, setEditingUser] = useState(null);
-    const [userToModifyStatus, setUserToModifyStatus] = useState(null);
+    const [userToModify, setUserToModify] = useState(null);
     const [newStatusForUser, setNewStatusForUser] = useState('');
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     
     const [searchTerm, setSearchTerm] = useState("");
     const [filterRole, setFilterRole] = useState("");
@@ -58,24 +59,53 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
     };
     
     const openStatusChangeModal = (user, targetStatus) => {
-        setUserToModifyStatus(user);
+        setUserToModify(user);
         setNewStatusForUser(targetStatus);
         setIsStatusModalOpen(true);
     };
 
     const confirmStatusChange = async () => {
-        if (!userToModifyStatus || !newStatusForUser) return;
+        if (!userToModify || !newStatusForUser) return;
         setActionLoading(true);
-        const result = await DataService.updateUserProfile(db, userToModifyStatus.id, { accountStatus: newStatusForUser });
-        if (result.success) {
-            showNotification(`User account status changed to ${newStatusForUser}.`, "success");
+        
+        // This is the "soft delete" part: disable the auth account
+        await DataService.updateUserProfile(db, userToModify.id, { accountStatus: newStatusForUser });
+        
+        showNotification(`User account status changed to ${newStatusForUser}.`, "success");
+        fetchUsers();
+        
+        setIsStatusModalOpen(false);
+        setUserToModify(null);
+        setNewStatusForUser('');
+        setActionLoading(false);
+    };
+
+    const openDeleteModal = (user) => {
+        setUserToModify(user);
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDeleteUser = async () => {
+        if (!userToModify) return;
+        setActionLoading(true);
+        
+        // Step 1: Disable the user in Firebase Auth via a status change.
+        await DataService.updateUserProfile(db, userToModify.id, { accountStatus: 'Suspended' });
+        
+        // Step 2: Delete the Firestore profile documents.
+        const deleteResult = await DataService.deleteUserProfile(db, userToModify.id);
+
+        if (deleteResult.success) {
+            showNotification(`User ${userToModify.displayName} has been permanently deleted.`, "success");
             fetchUsers();
         } else {
-            showNotification(result.error || "Failed to update user status.", "error");
+            showNotification(deleteResult.error || "Failed to delete user profile.", "error");
+            // Optional: Revert the status change if deletion fails
+            await DataService.updateUserProfile(db, userToModify.id, { accountStatus: userToModify.accountStatus });
         }
-        setIsStatusModalOpen(false);
-        setUserToModifyStatus(null);
-        setNewStatusForUser('');
+        
+        setIsDeleteModalOpen(false);
+        setUserToModify(null);
         setActionLoading(false);
     };
 
@@ -140,8 +170,11 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
                                     <td className="px-4 py-3 whitespace-nowrap text-gray-500">{u.createdAt ? formatDate(u.createdAt, { year: 'numeric', month: 'short', day: 'numeric'}) : 'N/A'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-1.5">
                                         <button onClick={() => handleOpenEditModal(u)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-100 rounded-md" title="Edit User"><Edit3 size={16}/></button>
-                                         {u.accountStatus !== 'Suspended' && <button onClick={() => openStatusChangeModal(u, 'Suspended')} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-100 rounded-md" title="Suspend User"><UserX size={16} /></button>}
+                                         {u.accountStatus !== 'Suspended' && <button onClick={() => openStatusChangeModal(u, 'Suspended')} className="text-orange-500 hover:text-orange-700 p-1 hover:bg-orange-100 rounded-md" title="Suspend User"><UserX size={16} /></button>}
                                         {(u.accountStatus === 'Suspended' || u.accountStatus === 'Inactive') && <button onClick={() => openStatusChangeModal(u, 'Active')} className="text-green-500 hover:text-green-700 p-1 hover:bg-green-100 rounded-md" title="Activate User"><UserCheck size={16} /></button>}
+                                        {adminUserData?.uid !== u.id && (
+                                            <button onClick={() => openDeleteModal(u)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-100 rounded-md" title="Delete User"><Trash2 size={16}/></button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -152,10 +185,25 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
 
             {editingUser && <UserEditModal user={editingUser} isOpen={!!editingUser} onClose={handleCloseEditModal} onSave={handleSaveUser} isSaving={actionLoading} determineServiceTypeAndRole={determineServiceTypeAndRole} showNotification={showNotification}/>}
 
-            {isStatusModalOpen && userToModifyStatus && (
+            {isStatusModalOpen && userToModify && (
                 <ConfirmationModal isOpen={isStatusModalOpen} onClose={() => setIsStatusModalOpen(false)} onConfirm={confirmStatusChange} title={`Confirm Status Change`} confirmText={actionLoading ? "Updating..." : `Set to ${newStatusForUser}`} isConfirming={actionLoading} iconType={newStatusForUser === 'Active' ? 'success' : 'danger'}
                     confirmButtonClass={newStatusForUser === 'Active' ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'}>
-                    <p>Change status for <strong>{userToModifyStatus.displayName || userToModifyStatus.email}</strong> to <strong className={newStatusForUser === 'Active' ? 'text-green-600' : 'text-red-600'}>{newStatusForUser}</strong>?</p>
+                    <p>Change status for <strong>{userToModify.displayName || userToModify.email}</strong> to <strong className={newStatusForUser === 'Active' ? 'text-green-600' : 'text-red-600'}>{newStatusForUser}</strong>?</p>
+                </ConfirmationModal>
+            )}
+
+            {isDeleteModalOpen && userToModify && (
+                <ConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => setIsDeleteModalOpen(false)}
+                    onConfirm={confirmDeleteUser}
+                    title="Confirm User Deletion"
+                    confirmText="Yes, Permanently Delete"
+                    isConfirming={actionLoading}
+                    iconType="danger"
+                >
+                    <p>Are you sure you want to delete <strong>{userToModify.displayName || userToModify.email}</strong>?</p>
+                    <p className="text-sm text-gray-500 mt-2">This will permanently delete the user's profile and data. Their authentication account will be disabled. This action cannot be undone.</p>
                 </ConfirmationModal>
             )}
         </div>

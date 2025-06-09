@@ -23,6 +23,22 @@ const handleFirestoreError = (functionName, error) => {
     return { success: false, error: userFriendlyMessage };
 };
 
+export const deleteUserProfile = async (dbInstance, userId) => {
+    try {
+        const batch = writeBatch(dbInstance);
+        const flatProfileRef = doc(dbInstance, profilesCollectionPath(), userId);
+        const nestedProfileRef = doc(dbInstance, userProfileDocumentPath(userId));
+        
+        batch.delete(flatProfileRef);
+        batch.delete(nestedProfileRef);
+        
+        await batch.commit();
+        return { success: true };
+    } catch (error) {
+        return handleFirestoreError('deleteUserProfile', error);
+    }
+};
+
 const deleteAllFromCollection = async (dbInstance, collectionPath) => {
     try {
         const snapshot = await getDocs(collection(dbInstance, collectionPath));
