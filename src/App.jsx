@@ -202,6 +202,7 @@ const App = () => {
                     showNotification={showNotification}
                     auth={fbAuth}
                     db={fbDb}
+                    systemSettings={systemSettings}
                 />
                 <Notification message={notification.message} type={notification.type} onClose={clearNotification} />
             </>
@@ -217,7 +218,7 @@ const App = () => {
 
     return (
         <>
-            <AuthFormContainer authError={formSpecificError || authError}>
+            <AuthFormContainer authError={formSpecificError || authError} systemSettings={systemSettings}>
                 {authPages[currentPage] || authPages.login}
             </AuthFormContainer>
             <Notification message={notification.message} type={notification.type} onClose={clearNotification} />

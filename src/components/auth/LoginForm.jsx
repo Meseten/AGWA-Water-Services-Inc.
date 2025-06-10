@@ -7,7 +7,8 @@ const LoginForm = ({
     authActionLoading,
     handleLoginExternal,
     handleGoogleSignIn,
-    setAuthError
+    setAuthError,
+    systemSettings = {}
 }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -27,6 +28,8 @@ const LoginForm = ({
         if(setAuthError) setAuthError('');
         await handleGoogleSignIn();
     };
+
+    const { isGoogleLoginEnabled = true, isPasswordlessLoginEnabled = true, isSignupEnabled = true } = systemSettings;
 
     return (
         <form onSubmit={onLoginSubmit} className="space-y-5">
@@ -69,25 +72,33 @@ const LoginForm = ({
                 {authActionLoading && <Loader2 className="animate-spin inline mr-2" size={18} />}
                 {authActionLoading ? 'Logging In...' : 'Login'}
             </button>
-            <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
-                <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with</span></div>
-            </div>
-            <button type="button" onClick={onGoogleLoginClick} className={googleButtonClass} disabled={authActionLoading}>
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" onError={(e) => e.target.style.display='none'} />
-                <span>Sign in with Google</span>
-            </button>
-            <button type="button" onClick={() => navigateTo('passwordlessLogin')} className={linkButtonClass} disabled={authActionLoading}>
-                <LinkIcon size={18} className="mr-2"/>
-                <span>Sign in with Email Link</span>
-            </button>
+            {(isGoogleLoginEnabled || isPasswordlessLoginEnabled) && (
+                <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
+                    <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with</span></div>
+                </div>
+            )}
+            {isGoogleLoginEnabled && (
+                <button type="button" onClick={onGoogleLoginClick} className={googleButtonClass} disabled={authActionLoading}>
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" onError={(e) => e.target.style.display='none'} />
+                    <span>Sign in with Google</span>
+                </button>
+            )}
+            {isPasswordlessLoginEnabled && (
+                <button type="button" onClick={() => navigateTo('passwordlessLogin')} className={linkButtonClass} disabled={authActionLoading}>
+                    <LinkIcon size={18} className="mr-2"/>
+                    <span>Sign in with Email Link</span>
+                </button>
+            )}
             <div className="text-sm text-center mt-5 space-y-1.5">
-                <p className="text-gray-600">
-                    Don't have an account?{' '}
-                    <button type="button" onClick={() => navigateTo('signup')} className="font-semibold text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-70" disabled={authActionLoading}>
-                        Sign Up
-                    </button>
-                </p>
+                {isSignupEnabled && (
+                    <p className="text-gray-600">
+                        Don't have an account?{' '}
+                        <button type="button" onClick={() => navigateTo('signup')} className="font-semibold text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-70" disabled={authActionLoading}>
+                            Sign Up
+                        </button>
+                    </p>
+                )}
                 <p className="text-gray-600">
                     <button type="button" onClick={() => navigateTo('forgotPassword')} className="font-semibold text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-70" disabled={authActionLoading}>
                         Forgot Password?

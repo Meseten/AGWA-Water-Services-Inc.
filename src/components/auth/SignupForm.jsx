@@ -8,7 +8,8 @@ const SignupForm = ({
     handleSignupExternal,
     handleGoogleSignIn,
     setAuthError,
-    showNotification
+    showNotification,
+    systemSettings = {}
 }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -31,6 +32,8 @@ const SignupForm = ({
     const onGoogleSignupClick = async () => {
         await handleGoogleSignIn();
     };
+    
+    const { isGoogleLoginEnabled = true } = systemSettings;
 
     return (
         <form onSubmit={onSignupSubmit} className="space-y-5">
@@ -64,14 +67,18 @@ const SignupForm = ({
                 {authActionLoading && <Loader2 className="animate-spin inline mr-2" size={18} />}
                 {authActionLoading ? 'Creating Account...' : 'Create My Account'}
             </button>
-            <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
-                <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or sign up with</span></div>
-            </div>
-            <button type="button" onClick={onGoogleSignupClick} className={googleButtonClass} disabled={authActionLoading}>
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" onError={(e) => e.target.style.display='none'}/>
-                <span>Sign up with Google</span>
-            </button>
+            {isGoogleLoginEnabled && (
+                <>
+                    <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
+                        <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or sign up with</span></div>
+                    </div>
+                    <button type="button" onClick={onGoogleSignupClick} className={googleButtonClass} disabled={authActionLoading}>
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" onError={(e) => e.target.style.display='none'}/>
+                        <span>Sign up with Google</span>
+                    </button>
+                </>
+            )}
             <p className="text-sm text-center text-gray-600 mt-5">
                 Already have an account?{' '}
                 <button type="button" onClick={() => navigateTo('login')} className="font-semibold text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-70" disabled={authActionLoading}>

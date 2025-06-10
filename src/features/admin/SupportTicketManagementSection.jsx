@@ -5,6 +5,7 @@ import TicketViewModal from './TicketViewModal.jsx';
 import ConfirmationModal from '../../components/ui/ConfirmationModal.jsx';
 import * as DataService from '../../services/dataService.js';
 import { formatDate } from '../../utils/userUtils.js';
+import { Timestamp } from 'firebase/firestore';
 
 const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, showNotification }) => {
     const [tickets, setTickets] = useState([]);
@@ -20,18 +21,60 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
     const commonSelectClass = "w-full sm:w-auto text-sm px-3 py-2 rounded-md bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150";
     const commonInputClass = `${commonSelectClass} placeholder-gray-400`;
 
+    const handleAutoCloseTickets = useCallback(async (ticketList, settings) => {
+        const autoCloseDays = settings?.autoCloseTicketsDays;
+        if (!autoCloseDays || isNaN(autoCloseDays) || autoCloseDays <= 0) {
+            return;
+        }
+
+        const now = new Date();
+        const ticketsToClose = [];
+
+        ticketList.forEach(ticket => {
+            if (ticket.status === 'Resolved') {
+                const lastUpdated = ticket.lastUpdatedAt?.toDate ? ticket.lastUpdatedAt.toDate() : new Date(0);
+                const daysSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60 * 24);
+                if (daysSinceUpdate > autoCloseDays) {
+                    ticketsToClose.push(ticket.id);
+                }
+            }
+        });
+
+        if (ticketsToClose.length > 0) {
+            const result = await DataService.batchUpdateTicketStatus(db, ticketsToClose, 'Closed');
+            if (result.success) {
+                showNotification(`Successfully auto-closed ${ticketsToClose.length} inactive ticket(s).`, "success");
+            } else {
+                showNotification(`Failed to auto-close tickets: ${result.error}`, "error");
+            }
+        }
+    }, [db, showNotification]);
 
     const fetchTickets = useCallback(async () => {
         setIsLoading(true);
-        const result = await DataService.getAllSupportTickets(db);
-        if (result.success) {
-            setTickets(result.data);
+        const [ticketsResult, settingsResult] = await Promise.all([
+            DataService.getAllSupportTickets(db),
+            DataService.getSystemSettings(db)
+        ]);
+
+        if (ticketsResult.success) {
+            setTickets(ticketsResult.data);
+            if (settingsResult.success && settingsResult.data) {
+                await handleAutoCloseTickets(ticketsResult.data, settingsResult.data);
+                // After auto-closing, we might need to refresh the list if any tickets were changed
+                if (ticketsResult.data.some(t => t.status === 'Resolved')) {
+                    const refreshedTicketsResult = await DataService.getAllSupportTickets(db);
+                    if (refreshedTicketsResult.success) {
+                        setTickets(refreshedTicketsResult.data);
+                    }
+                }
+            }
         } else {
-            showNotification(result.error || "Failed to fetch support tickets.", "error");
+            showNotification(ticketsResult.error || "Failed to fetch support tickets.", "error");
             setTickets([]);
         }
         setIsLoading(false);
-    }, [db, showNotification]);
+    }, [db, showNotification, handleAutoCloseTickets]);
 
     useEffect(() => {
         fetchTickets();
@@ -57,7 +100,7 @@ const SupportTicketManagementSection = ({ db, appId, userData: adminUserData, sh
         const result = await DataService.deleteSupportTicket(db, ticketToDelete.id);
         if (result.success) {
             showNotification("Support ticket deleted successfully.", "success");
-            fetchTickets(); // Re-fetch the list after deletion
+            fetchTickets();
         } else {
             showNotification(result.error || "Failed to delete ticket.", "error");
         }

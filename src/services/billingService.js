@@ -1,19 +1,3 @@
-
-/**
- * Calculates detailed water bill charges based on consumption, service type, and meter size.
- * This logic is based on the rates provided in the AGWA tariff structure.
- *
- * @param {number} consumption - Water consumption in cubic meters (cu.m.).
- * @param {string} serviceType - The type of service (e.g., 'Residential', 'Commercial', 'Residential Low-Income').
- * @param {string} [meterSize='1/2"'] - The size of the water meter (e.g., '1/2"', '15mm', '1"').
- * @param {object} [systemSettingsInput={}] - System settings object containing rates.
- * @param {number} [systemSettingsInput.fcdaPercentage=1.29]
- * @param {number} [systemSettingsInput.environmentalChargePercentage=25]
- * @param {number} [systemSettingsInput.sewerageChargePercentageCommercial=32.85]
- * @param {number} [systemSettingsInput.governmentTaxPercentage=2]
- * @param {number} [systemSettingsInput.vatPercentage=12]
- * @returns {object} An object containing all calculated charges and totals.
- */
 export const calculateBillDetails = (
     consumption,
     serviceType,
@@ -61,10 +45,6 @@ export const calculateBillDetails = (
     else if (meterSizeCleaned === '8' || meterSizeCleaned === '200mm') maintenanceServiceCharge = 50.00;
     else maintenanceServiceCharge = 1.50;
 
-
-    // Basic Charge Calculation (based on original AGWA PDF logic - tariff rates hardcoded here)
-    // These tariff step rates are typically fixed by regulation and change less frequently than percentages.
-    // If these also need to be dynamic, the data structure for systemSettings would need to be more complex.
     if (serviceType === 'Residential Low-Income') {
         if (cons <= 10) basicCharge = 70.07;
         else if (cons <= 20) basicCharge = 70.07 + (cons - 10) * 14.29;
@@ -101,16 +81,13 @@ export const calculateBillDetails = (
             else if (excessCons <= 170) basicCharge += (10*39.90) + (20*49.22) + (20*62.55) + (20*72.88) + (50*76.14) + (excessCons-120)*79.42;
             else basicCharge += (10*39.90) + (20*49.22) + (20*62.55) + (20*72.88) + (50*76.14) + (50*79.42) + (excessCons-170)*82.67;
         }
-    } else if (serviceType === 'Commercial' || serviceType === 'Admin') { // Business Group I
-        const tiers = [ /* ... (same as before) ... */ ]; // Tariff tiers remain hardcoded for now
+    } else if (serviceType === 'Commercial' || serviceType === 'Admin') {
         let remainingCons = cons; basicCharge = 0;
+        const tiers = [ { limit: 10, rate: 0, fixed: 512.30 }, { limit: 20, rate: 53.61 }, { limit: 40, rate: 58.98 }, { limit: 60, rate: 64.33 }, { limit: 80, rate: 69.69 }, { limit: 100, rate: 72.88 }, { limit: 150, rate: 76.14 }, { limit: 200, rate: 79.42 }, { limit: Infinity, rate: 82.67 } ];
         if (remainingCons > 0 && tiers[0].fixed) { basicCharge += tiers[0].fixed; remainingCons -= tiers[0].limit; }
         for (let i = 1; i < tiers.length; i++) { if (remainingCons <= 0) break; const prevLimit = tiers[i-1].limit; const currentTierConsumptionCap = tiers[i].limit - prevLimit; const chargeableCons = Math.min(remainingCons, currentTierConsumptionCap); basicCharge += chargeableCons * tiers[i].rate; remainingCons -= chargeableCons; }
-    } else if (serviceType === 'Industrial' || serviceType === 'Meter Reading Personnel') { // Business Group II
-        const tiers = [ /* ... (same as before) ... */ ]; // Tariff tiers remain hardcoded for now
-        let remainingCons = cons; basicCharge = 0;
-        if (remainingCons > 0 && tiers[0].fixed) { basicCharge += tiers[0].fixed; remainingCons -= tiers[0].limit; }
-        for (let i = 1; i < tiers.length; i++) { if (remainingCons <= 0) break; const prevLimit = tiers[i-1].limit; const currentTierConsumptionCap = tiers[i].limit - prevLimit; const chargeableCons = Math.min(remainingCons, currentTierConsumptionCap); basicCharge += chargeableCons * tiers[i].rate; remainingCons -= chargeableCons; }
+    } else if (serviceType === 'Industrial' || serviceType === 'Meter Reading Personnel') {
+        basicCharge = cons * 72.68;
     } else { 
         if (cons <= 10) basicCharge = 195.49; else basicCharge = 195.49 + (cons - 10) * 23.82;
     }
@@ -128,7 +105,7 @@ export const calculateBillDetails = (
     const sumForGovTaxAndVat = waterCharge + environmentalCharge + sewerageCharge + maintenanceServiceCharge;
     governmentTaxes = sumForGovTaxAndVat * govTaxRate;
     
-    const vatableSales = sumForGovTaxAndVat; // Base for VAT calculation
+    const vatableSales = sumForGovTaxAndVat;
     vat = vatableSales * vatRate;
 
     const totalCalculatedCharges = vatableSales + governmentTaxes + vat;

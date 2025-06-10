@@ -8,7 +8,7 @@ import * as DataService from '../../services/dataService.js';
 import { callGeminiAPI } from '../../services/geminiService.js';
 import { formatDate } from '../../utils/userUtils.js';
 
-const CustomerBillsSection = ({ user, userData, db, showNotification, billingService }) => {
+const CustomerBillsSection = ({ user, userData, db, showNotification, billingService, systemSettings = {} }) => {
     const [bills, setBills] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -24,6 +24,8 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
     const [billToView, setBillToView] = useState(null);
     const [isInvoiceViewOpen, setIsInvoiceViewOpen] = useState(false);
 
+    const { isOnlinePaymentsEnabled = true } = systemSettings;
+
     const fetchBills = useCallback(async () => {
         setIsLoading(true);
         setError('');
@@ -36,7 +38,7 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
             });
             
             const billsWithDetails = sortedBills.map(bill => {
-                const charges = billingService(bill.consumption, userData.serviceType, userData.meterSize);
+                const charges = billingService(bill.consumption, userData.serviceType, userData.meterSize, systemSettings);
                 const totalAmount = charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
                 return { ...bill, amount: totalAmount, calculatedCharges: charges };
             });
@@ -47,7 +49,7 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
             showNotification(result.error || "Failed to fetch bills.", "error");
         }
         setIsLoading(false);
-    }, [db, user.uid, showNotification, billingService, userData.serviceType, userData.meterSize]);
+    }, [db, user.uid, showNotification, billingService, userData.serviceType, userData.meterSize, systemSettings]);
 
     useEffect(() => {
         fetchBills();
@@ -159,7 +161,7 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                             <button onClick={() => handleExplainBill(bill)} className="text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1.5 rounded-md transition flex items-center" disabled={isExplaining && billToExplain?.id === bill.id}>
                                 {isExplaining && billToExplain?.id === bill.id ? <Loader2 size={14} className="animate-spin mr-1"/> : <Sparkles size={14} className="mr-1"/>} Explain Bill
                             </button>
-                            {bill.status === 'Unpaid' && (
+                            {bill.status === 'Unpaid' && isOnlinePaymentsEnabled && (
                                 <button onClick={() => handlePayBillClick(bill)} className="text-xs font-bold bg-green-500 text-white hover:bg-green-600 px-4 py-1.5 rounded-md transition flex items-center">
                                     <span className="mr-1 font-bold">₱</span> Pay Now
                                 </button>

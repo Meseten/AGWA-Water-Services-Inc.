@@ -1,24 +1,21 @@
-// src/features/common/ContactUsSection.jsx
 import React from 'react';
-import { PhoneCall, Mail, Building2, MapPin, Facebook, Twitter, Instagram, MessageSquare, Clock } from 'lucide-react'; // Assuming Facebook, Twitter, Instagram are custom or handled appropriately
+import { PhoneCall, Mail, Building2, MapPin, Facebook, Twitter, Instagram, MessageSquare, Clock } from 'lucide-react';
 
-// Placeholder for social media icons if Lucide doesn't have them directly
-// You might use a library like 'react-social-icons' or custom SVGs for these.
 const SocialIcon = ({ type, href }) => {
     let IconComponent;
-    let hoverColor = 'hover:text-blue-700'; // Default hover
+    let hoverColor = 'hover:text-blue-700';
 
     switch (type) {
         case 'Facebook':
-            IconComponent = Facebook; // From lucide-react
+            IconComponent = Facebook;
             hoverColor = 'hover:text-blue-600';
             break;
         case 'Twitter':
-            IconComponent = Twitter; // From lucide-react
+            IconComponent = Twitter;
             hoverColor = 'hover:text-sky-500';
             break;
         case 'Instagram':
-            IconComponent = Instagram; // From lucide-react
+            IconComponent = Instagram;
             hoverColor = 'hover:text-pink-600';
             break;
         default:
@@ -38,13 +35,18 @@ const SocialIcon = ({ type, href }) => {
 };
 
 
-const ContactUsSection = () => {
+const ContactUsSection = ({ systemSettings = {} }) => {
+    const { 
+        supportHotline = "1627-AGWA (24/7 Emergency)",
+        supportEmail = "support@agwa-waterservices.com.ph"
+    } = systemSettings;
+
     const contactDetails = [
         {
             icon: PhoneCall,
             title: "Customer Service Hotlines",
             lines: [
-                { text: "1627-AGWA (24/7 Emergency)", valueClass: "text-2xl font-semibold text-blue-700 tracking-tight" },
+                { text: supportHotline, valueClass: "text-2xl font-semibold text-blue-700 tracking-tight" },
                 { text: "(+63 2) 8162-2492 (Outside Metro Manila / Standard Hours)", valueClass: "text-lg text-gray-700" }
             ],
             note: "Emergency reports are handled 24/7. General inquiries: Mon - Fri, 8 AM - 5 PM PHT.",
@@ -55,10 +57,10 @@ const ContactUsSection = () => {
             icon: Mail,
             title: "Email Support",
             lines: [
-                { text: "support@agwa-waterservices.com.ph", valueClass: "text-lg text-green-700 hover:underline" }
+                { text: supportEmail, valueClass: "text-lg text-green-700 hover:underline" }
             ],
             note: "For general inquiries, billing concerns, feedback, and non-urgent requests. Expect a response within 1-2 business days.",
-            href: "mailto:support@agwa-waterservices.com.ph",
+            href: `mailto:${supportEmail}`,
             bgColor: "bg-green-50",
             iconColor: "text-green-600"
         }
@@ -74,8 +76,8 @@ const ContactUsSection = () => {
         ],
         hours: "Mon - Fri, 8:00 AM - 5:00 PM PHT (Closed on weekends & public holidays)",
         note: "Walk-ins are welcome for payments and specific services. For complex concerns, an appointment is recommended to ensure specialist availability.",
-        mapLink: "https://maps.google.com/?q=AGWA+Water+Services+Tower,Quezon+City", // Replace with actual map link
-        bgColor: "bg-gray-100", // Slightly different background for office
+        mapLink: "https://maps.google.com/?q=AGWA+Water+Services+Tower,Quezon+City",
+        bgColor: "bg-gray-100",
         iconColor: "text-gray-600"
     };
 
@@ -157,7 +159,7 @@ const ContactUsSection = () => {
                     ))}
                 </div>
                 <p className="mt-8 text-xs text-gray-500">
-                    For online self-service options, please <button onClick={() => {/* Potentially navigate to login or dashboard */ alert("Please log in to access self-service options.")}} className="text-blue-600 hover:underline font-medium">log in</button> to your account. <br/>
+                    For online self-service options, please <button onClick={() => { alert("Please log in to access self-service options.")}} className="text-blue-600 hover:underline font-medium">log in</button> to your account. <br/>
                     General information is also available on our official website: <a href="https://www.agwa-waterservices.com.ph" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">www.agwa-waterservices.com.ph</a>
                 </p>
             </div>

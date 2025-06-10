@@ -5,9 +5,7 @@ export const commonButtonClass = "w-full bg-blue-600 hover:bg-blue-700 text-whit
 export const googleButtonClass = "w-full bg-white hover:bg-gray-100 text-gray-700 font-semibold py-3 px-4 rounded-lg border border-gray-300 shadow-sm hover:shadow transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-opacity-50 flex items-center justify-center space-x-2 disabled:opacity-60 active:scale-95 text-sm";
 export const linkButtonClass = "w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-opacity-50 flex items-center justify-center space-x-2 disabled:opacity-60 active:scale-95 text-sm";
 
-
-
-const AuthFormContainer = React.memo(({ children, authError, appIdForPaths }) => (
+const AuthFormContainer = React.memo(({ children, authError, appIdForPaths, systemSettings = {} }) => (
   <div className="min-h-screen bg-gradient-to-br from-blue-700 to-indigo-800 flex flex-col justify-center items-center p-4 font-sans selection:bg-blue-300 selection:text-blue-900">
     <div className="bg-white p-8 sm:p-10 md:p-12 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-500 ease-out animate-fadeInUp">
       <div className="text-center mb-8">
@@ -21,7 +19,7 @@ const AuthFormContainer = React.memo(({ children, authError, appIdForPaths }) =>
         </div>
       )}
 
-      {children}
+      {React.cloneElement(children, { systemSettings })}
     </div>
 
     {appIdForPaths && (

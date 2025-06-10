@@ -23,6 +23,20 @@ const handleFirestoreError = (functionName, error) => {
     return { success: false, error: userFriendlyMessage };
 };
 
+export const batchUpdateTicketStatus = async (dbInstance, ticketIds, newStatus) => {
+    try {
+        const batch = writeBatch(dbInstance);
+        ticketIds.forEach(ticketId => {
+            const ticketRef = doc(dbInstance, supportTicketDocumentPath(ticketId));
+            batch.update(ticketRef, { status: newStatus, lastUpdatedAt: serverTimestamp() });
+        });
+        await batch.commit();
+        return { success: true };
+    } catch (error) {
+        return handleFirestoreError('batchUpdateTicketStatus', error);
+    }
+};
+
 export const deleteUserProfile = async (dbInstance, userId) => {
     try {
         const batch = writeBatch(dbInstance);
@@ -230,7 +244,6 @@ export const getDailyRevenueStats = async (dbInstance, days = 30) => {
         return handleFirestoreError('getDailyRevenueStats', error);
     }
 };
-
 
 export const getPaymentDayOfWeekStats = async (dbInstance) => {
     try {
