@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Modal from '../../components/ui/Modal.jsx';
-import { CreditCard, DollarSign, Loader2, X, Landmark } from 'lucide-react';
+import { CreditCard, Loader2, X, Landmark } from 'lucide-react';
 
 const PaymentModal = ({ isOpen, onClose, billToPay, onConfirmPayment, isProcessingPayment, userData }) => {
     const [selectedMethod, setSelectedMethod] = useState(null);
@@ -70,7 +70,7 @@ const PaymentModal = ({ isOpen, onClose, billToPay, onConfirmPayment, isProcessi
                     >
                         {isProcessingPayment 
                             ? <><Loader2 className="animate-spin mr-2"/> Processing...</>
-                            : <> <DollarSign className="mr-1"/> Confirm Payment</>
+                            : <> <span className="mr-1 font-bold">₱</span> Confirm Payment</>
                         }
                     </button>
                 </div>

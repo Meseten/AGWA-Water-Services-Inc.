@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, DollarSign, Sparkles, Loader2, Info, Eye } from 'lucide-react';
+import { FileText, Sparkles, Loader2, Info, Eye } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import PaymentModal from './PaymentModal.jsx';
@@ -90,18 +90,18 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                 
                 Bill Details:
                 - Bill Period: ${bill.monthYear}
-                - Total Amount Due: **PHP ${bill.amount.toFixed(2)}**
+                - Total Amount Due: **₱${bill.amount.toFixed(2)}**
                 - Due Date: ${formatDate(bill.dueDate)}
                 - Water Consumption: **${bill.consumption} cubic meters**
 
                 Explain the breakdown clearly:
-                1.  **Basic Charge (PHP ${charges.basicCharge.toFixed(2)})**: This is the main cost for the ${bill.consumption} cubic meters of water you used, based on your '${userData.serviceType}' tariff rate.
+                1.  **Basic Charge (₱${charges.basicCharge.toFixed(2)})**: This is the main cost for the ${bill.consumption} cubic meters of water you used, based on your '${userData.serviceType}' tariff rate.
                 2.  **Other Charges**: Briefly explain what these are for.
-                    - FCDA (PHP ${charges.fcda.toFixed(2)}): A small adjustment for foreign currency costs.
-                    - Environmental Charge (PHP ${charges.environmentalCharge.toFixed(2)}): This funds wastewater treatment and protects our environment.
-                    - Maintenance Service Charge (PHP ${charges.maintenanceServiceCharge.toFixed(2)}): A fixed fee for meter upkeep.
-                3.  **Taxes (PHP ${charges.vat.toFixed(2)})**: This is the 12% Value Added Tax required by the government.
-                4.  **Previous Unpaid Balance**: Mention if there is a previous balance of PHP ${(bill.previousUnpaidAmount || 0).toFixed(2)}.
+                    - FCDA (₱${charges.fcda.toFixed(2)}): A small adjustment for foreign currency costs.
+                    - Environmental Charge (₱${charges.environmentalCharge.toFixed(2)}): This funds wastewater treatment and protects our environment.
+                    - Maintenance Service Charge (₱${charges.maintenanceServiceCharge.toFixed(2)}): A fixed fee for meter upkeep.
+                3.  **Taxes (₱${charges.vat.toFixed(2)})**: This is the 12% Value Added Tax required by the government.
+                4.  **Previous Unpaid Balance**: Mention if there is a previous balance of ₱${(bill.previousUnpaidAmount || 0).toFixed(2)}.
 
                 Conclude by summarizing how all these add up to the Total Amount Due and gently remind them of the due date.
             `;
@@ -161,7 +161,7 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                             </button>
                             {bill.status === 'Unpaid' && (
                                 <button onClick={() => handlePayBillClick(bill)} className="text-xs font-bold bg-green-500 text-white hover:bg-green-600 px-4 py-1.5 rounded-md transition flex items-center">
-                                    <DollarSign size={14} className="mr-1"/> Pay Now
+                                    <span className="mr-1 font-bold">₱</span> Pay Now
                                 </button>
                             )}
                         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutDashboard, Banknote, FileSearch, Clock, DollarSign, RotateCcw, Loader2, AlertTriangle, Info, Printer } from 'lucide-react';
+import { LayoutDashboard, Banknote, FileSearch, Clock, RotateCcw, Loader2, AlertTriangle, Info, Printer } from 'lucide-react';
 import DashboardInfoCard from '../../components/ui/DashboardInfoCard.jsx';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import * as DataService from '../../services/dataService.js';
@@ -27,10 +27,17 @@ const ClerkDashboardMain = ({ userData, showNotification, setActiveSection, db }
             const paymentsResult = await DataService.getPaymentsByClerkForToday(db, userData.uid);
             if (paymentsResult.success && paymentsResult.data) {
                 const { paymentsTodayCount, totalCollectedToday, transactions } = paymentsResult.data;
+                const paymentMethodSummary = transactions.reduce((acc, tx) => {
+                    const method = tx.paymentMethod || 'Other';
+                    acc[method] = (acc[method] || 0) + (tx.amountPaid || 0);
+                    return acc;
+                }, {});
+
                 setDashboardStats({
                     paymentsTodayCount,
                     totalCollectedToday,
                     avgPaymentAmount: paymentsTodayCount > 0 ? totalCollectedToday / paymentsTodayCount : 0,
+                    paymentMethodSummary
                 });
                 setTodaysTransactions(transactions);
             } else {
@@ -53,10 +60,10 @@ const ClerkDashboardMain = ({ userData, showNotification, setActiveSection, db }
         const printWindow = window.open('', '', 'height=800,width=1000');
         printWindow.document.write('<html><head><title>End-of-Day Report</title>');
         printWindow.document.write('<script src="https://cdn.tailwindcss.com"></script>');
-        printWindow.document.write('<style>body {font-family: Arial, sans-serif;} @media print {.no-print{display:none;}}</style>');
-        printWindow.document.write('</head><body class="p-4">');
+        printWindow.document.write('<style>body {font-family: Arial, sans-serif;-webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;} @media print {.no-print{display:none;} .printable-area { padding: 1rem; } }</style>');
+        printWindow.document.write('</head><body><div class="printable-area">');
         printWindow.document.write(reportContent);
-        printWindow.document.write('</body></html>');
+        printWindow.document.write('</div></body></html>');
         printWindow.document.close();
         setTimeout(() => printWindow.print(), 500);
     };
@@ -65,6 +72,8 @@ const ClerkDashboardMain = ({ userData, showNotification, setActiveSection, db }
         { title: "Process Walk-in Payment", icon: Banknote, section: 'walkInPayments', description: "Record payments for customers paying in person at the counter.", color: "blue" },
         { title: "Search Account / Bill", icon: FileSearch, section: 'searchAccountOrBill', description: "Look up customer account details, outstanding bills, or payment history.", color: "teal" },
     ];
+    
+    const PesoIcon = () => <span className="font-bold">₱</span>;
 
     if (isLoading) {
         return <LoadingSpinner message="Loading clerk dashboard..." className="mt-10 h-48" />;
@@ -89,8 +98,8 @@ const ClerkDashboardMain = ({ userData, showNotification, setActiveSection, db }
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 no-print">
                 <DashboardInfoCard title="Payments Today" value={dashboardStats.paymentsTodayCount} icon={Banknote} borderColor="border-green-500" iconColor="text-green-500" onClick={() => document.getElementById('eod-report-wrapper')?.scrollIntoView({behavior:'smooth'})} />
-                <DashboardInfoCard title="Total Collected Today" value={`₱${dashboardStats.totalCollectedToday.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} borderColor="border-emerald-500" iconColor="text-emerald-500" />
-                <DashboardInfoCard title="Avg. Payment Today" value={`₱${dashboardStats.avgPaymentAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} borderColor="border-teal-500" iconColor="text-teal-500" />
+                <DashboardInfoCard title="Total Collected Today" value={`₱${dashboardStats.totalCollectedToday.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={PesoIcon} borderColor="border-emerald-500" iconColor="text-emerald-500" />
+                <DashboardInfoCard title="Avg. Payment Today" value={`₱${dashboardStats.avgPaymentAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={PesoIcon} borderColor="border-teal-500" iconColor="text-teal-500" />
             </div>
 
             <div className="no-print">
@@ -117,59 +126,84 @@ const ClerkDashboardMain = ({ userData, showNotification, setActiveSection, db }
                         <Printer size={14} className="mr-1.5" /> Print Report
                     </button>
                 </div>
-                <div id="eod-report-content" className="bg-white p-6 rounded-lg border">
-                    <div className="flex justify-between items-start pb-4 border-b-2 border-gray-700">
+                <div id="eod-report-content" className="bg-white p-6 rounded-lg border text-gray-800">
+                    <header className="flex justify-between items-start pb-4 border-b-2 border-gray-700">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-800">End-of-Day Clerk Report</h1>
-                            <p className="text-sm text-gray-500">AGWA Water Services, Inc.</p>
+                            <h1 className="text-3xl font-bold text-blue-700">AGWA</h1>
+                            <p className="text-sm text-gray-500 italic">End-of-Day Clerk Report</p>
                         </div>
                         <div className="text-right text-sm">
                             <p><span className="font-semibold">Cashier:</span> {userData.displayName}</p>
                             <p><span className="font-semibold">Date:</span> {formatDate(new Date(), {year: 'numeric', month: 'long', day: 'numeric'})}</p>
+                            <p><span className="font-semibold">Report Generated:</span> {formatDate(new Date(), {hour:'2-digit', minute:'2-digit'})}</p>
                         </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 my-4 text-center">
-                        <div className="bg-gray-100 p-3 rounded">
-                            <p className="text-xs text-gray-500 uppercase">Total Transactions</p>
-                            <p className="text-xl font-bold">{dashboardStats.paymentsTodayCount}</p>
+                    </header>
+                    
+                    <section className="my-6">
+                        <h2 className="text-lg font-semibold mb-3 text-center">Shift Summary</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="bg-blue-50 p-4 rounded-lg text-center">
+                                <p className="text-sm text-blue-700 uppercase font-semibold">Total Collected</p>
+                                <p className="text-2xl font-bold text-blue-800">₱{dashboardStats.totalCollectedToday.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                            </div>
+                            <div className="bg-gray-100 p-4 rounded-lg text-center">
+                                <p className="text-sm text-gray-600 uppercase font-semibold">Total Transactions</p>
+                                <p className="text-2xl font-bold">{dashboardStats.paymentsTodayCount}</p>
+                            </div>
+                             <div className="bg-gray-100 p-4 rounded-lg text-center">
+                                <p className="text-sm text-gray-600 uppercase font-semibold">Average Transaction</p>
+                                <p className="text-2xl font-bold">₱{dashboardStats.avgPaymentAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                            </div>
                         </div>
-                        <div className="bg-green-100 p-3 rounded">
-                            <p className="text-xs text-green-700 uppercase">Total Collected</p>
-                            <p className="text-xl font-bold text-green-800">₱{dashboardStats.totalCollectedToday.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                        </div>
-                    </div>
-                    {todaysTransactions.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <h3 className="text-md font-semibold text-gray-700 my-3">Transaction Details</h3>
-                            <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                <thead className="bg-gray-100">
-                                    <tr>
-                                        <th className="px-4 py-2 text-left font-medium text-gray-600">Time</th>
-                                        <th className="px-4 py-2 text-left font-medium text-gray-600">Account #</th>
-                                        <th className="px-4 py-2 text-left font-medium text-gray-600">Method</th>
-                                        <th className="px-4 py-2 text-right font-medium text-gray-600">Amount (PHP)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {todaysTransactions.map(tx => (
-                                        <tr key={tx.id}>
-                                            <td className="px-4 py-2 whitespace-nowrap">{formatDate(tx.paymentTimestamp?.toDate(), {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</td>
-                                            <td className="px-4 py-2 whitespace-nowrap font-mono">{tx.accountNumber}</td>
-                                            <td className="px-4 py-2 whitespace-nowrap">{tx.paymentMethod}</td>
-                                            <td className="px-4 py-2 whitespace-nowrap text-right font-semibold">{tx.amountPaid?.toFixed(2)}</td>
-                                        </tr>
+                        {dashboardStats.paymentMethodSummary && Object.keys(dashboardStats.paymentMethodSummary).length > 0 &&
+                            <div className="mt-4 p-4 border rounded-lg">
+                                <h3 className="text-sm font-semibold mb-2">Collection by Payment Method:</h3>
+                                <div className="text-xs space-y-1">
+                                    {Object.entries(dashboardStats.paymentMethodSummary).map(([method, amount]) => (
+                                        <div key={method} className="flex justify-between">
+                                            <span>{method}:</span>
+                                            <span className="font-medium">₱{amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
+                                </div>
+                            </div>
+                        }
+                    </section>
+
+                    <section className="mt-6">
+                        <h2 className="text-lg font-semibold mb-3 text-center">Transaction Details</h2>
+                        {todaysTransactions.length > 0 ? (
+                            <div className="overflow-x-auto border rounded-lg">
+                                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left font-semibold text-gray-600">Time</th>
+                                            <th className="px-4 py-2 text-left font-semibold text-gray-600">Account #</th>
+                                            <th className="px-4 py-2 text-left font-semibold text-gray-600">Ref #</th>
+                                            <th className="px-4 py-2 text-right font-semibold text-gray-600">Amount (PHP)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {todaysTransactions.map(tx => (
+                                            <tr key={tx.id}>
+                                                <td className="px-4 py-2 whitespace-nowrap">{formatDate(tx.paymentTimestamp?.toDate(), {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</td>
+                                                <td className="px-4 py-2 whitespace-nowrap font-mono">{tx.accountNumber}</td>
+                                                <td className="px-4 py-2 whitespace-nowrap font-mono text-xs">{tx.paymentReference}</td>
+                                                <td className="px-4 py-2 whitespace-nowrap text-right font-semibold">₱{tx.amountPaid?.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 text-center py-6 bg-gray-50 rounded-md">No payments have been processed yet today.</p>
+                        )}
+                    </section>
+                     <footer className="mt-12 pt-8">
+                        <div className="w-1/2 sm:w-1/3 border-t-2 border-gray-400 text-center mx-auto pt-2">
+                            <p className="text-xs text-gray-600">Cashier's Signature</p>
                         </div>
-                    ) : (
-                        <p className="text-sm text-gray-500 text-center py-6">No payments have been processed yet today.</p>
-                    )}
-                     <div className="mt-12 pt-8">
-                        <div className="w-1/3 border-t-2 border-gray-300 text-center mx-auto pt-2">
-                            <p className="text-xs text-gray-500">Signature Over Printed Name</p>
-                        </div>
-                    </div>
+                    </footer>
                 </div>
             </div>
         </div>

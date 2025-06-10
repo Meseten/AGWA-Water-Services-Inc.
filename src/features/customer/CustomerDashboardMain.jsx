@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { ShieldCheck, DollarSign, UserCircle, Home, CreditCard, AlertTriangle, Sparkles, FileText, Loader2, Info } from "lucide-react";
+import { ShieldCheck, UserCircle, Home, CreditCard, AlertTriangle, Sparkles, FileText, Loader2, Info } from "lucide-react";
 import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx";
 import Modal from "../../components/ui/Modal.jsx";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
@@ -86,12 +86,13 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
     const balanceSubtext = currentBalance > 0 && nextDueDate ? `Next Due: ${formatDate(nextDueDate, {month: 'short', day: 'numeric', year: 'numeric'})}` : (currentBalance === 0 ? 'All bills settled!' : '');
     
     const quickActionCardClass = "p-5 bg-white rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 ease-in-out text-left focus:outline-none focus:ring-2 focus:ring-opacity-75 flex flex-col items-start";
+    const PesoIcon = () => <span className="font-bold">₱</span>;
 
     return (
         <div className="space-y-8 animate-fadeIn">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <DashboardInfoCard title="Account Status" value={isLoadingData && !userData.accountStatus ? <Loader2 className="animate-spin h-5 w-5"/> : userData.accountStatus || 'Active'} icon={ShieldCheck} borderColor="border-green-500" iconColor="text-green-500" />
-                <DashboardInfoCard title="Current Balance" value={isLoadingData && currentBalance === 0 && nextDueDate === '' ? <Loader2 className="animate-spin h-5 w-5"/> : currentBalanceDisplay} subtext={balanceSubtext} icon={DollarSign} borderColor={currentBalance > 0 ? "border-red-500" : "border-green-500"} iconColor={currentBalance > 0 ? "text-red-500" : "text-green-500"} />
+                <DashboardInfoCard title="Current Balance" value={isLoadingData && currentBalance === 0 && nextDueDate === '' ? <Loader2 className="animate-spin h-5 w-5"/> : currentBalanceDisplay} subtext={balanceSubtext} icon={PesoIcon} borderColor={currentBalance > 0 ? "border-red-500" : "border-green-500"} iconColor={currentBalance > 0 ? "text-red-500" : "text-green-500"} />
                 <DashboardInfoCard title="Account Number" value={userData.accountNumber || 'N/A'} icon={UserCircle} borderColor="border-blue-500" iconColor="text-blue-500" />
                 <DashboardInfoCard title="Service Type" value={userData.serviceType || 'Residential'} icon={Home} borderColor="border-purple-500" iconColor="text-purple-500" />
             </div>

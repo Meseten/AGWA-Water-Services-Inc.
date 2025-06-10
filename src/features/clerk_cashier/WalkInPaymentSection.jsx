@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, UserCircle, Hash, FileText, CalendarDays, DollarSign, CheckCircle, Printer, Search, Loader2, AlertTriangle } from 'lucide-react';
+import { Banknote, UserCircle, Hash, FileText, CalendarDays, CheckCircle, Printer, Search, Loader2, AlertTriangle } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import * as DataService from '../../services/dataService.js';
 import { formatDate } from '../../utils/userUtils.js';
@@ -243,8 +243,9 @@ const WalkInPaymentSection = ({ db, userData: clerkData, showNotification, billi
                             <h3 className="text-lg font-semibold text-gray-700 mb-1">Payment Details</h3>
                             <div>
                                 <label htmlFor="paymentAmount" className="block text-sm font-medium text-gray-700 mb-1">Amount to Pay (PHP) *</label>
-                                <div className="relative"><DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <input type="number" id="paymentAmount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className={`${commonInputClass} pl-9`} step="0.01" required />
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">₱</span>
+                                    <input type="number" id="paymentAmount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className={`${commonInputClass} pl-7`} step="0.01" required />
                                 </div>
                             </div>
                             <div>

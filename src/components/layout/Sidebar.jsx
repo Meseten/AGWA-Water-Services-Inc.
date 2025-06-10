@@ -16,7 +16,7 @@ const Sidebar = ({
     onNavigate,
     onLogout,
     isMobileOpen,
-    onMobileClose
+    setMobileOpen
 }) => {
     const placeholderPhoto = `https://placehold.co/40x40/FFFFFF/3B82F6?text=${(userData.displayName || userData.email || 'U').charAt(0).toUpperCase()}`;
 
@@ -79,22 +79,12 @@ const Sidebar = ({
             </div>
         </div>
     );
-
+    
     return (
         <>
-            <div
-                className={`fixed inset-0 z-40 transform transition-transform duration-300 ease-in-out lg:hidden
-                    ${isMobileOpen ? 'translate-x-0 bg-black bg-opacity-50' : '-translate-x-full'}`}
-                onClick={onMobileClose}
-            >
-                <div
-                    className="w-64 h-full shadow-xl"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {sidebarContent}
-                </div>
-            </div>
-            <aside className="hidden lg:block w-64 fixed top-0 left-0 h-full z-30">
+            {isMobileOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" onClick={() => setMobileOpen(false)}></div>}
+            
+            <aside className={`fixed top-0 left-0 h-screen w-64 z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 {sidebarContent}
             </aside>
         </>

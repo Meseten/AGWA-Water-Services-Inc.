@@ -1,45 +1,38 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { BarChart3, Users, MessageSquare, FileText, AlertTriangle, RotateCcw, Megaphone, Loader2, Info, Printer, DollarSign, Calendar, CheckCircle } from "lucide-react";
-import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
-import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx";
+import { BarChart3, Users, MessageSquare, AlertTriangle, RotateCcw, Loader2, Info, Printer, Calendar, CheckCircle } from "lucide-react";
+import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import * as DataService from "../../services/dataService.js";
 import { db } from "../../firebase/firebaseConfig.js";
 
-const Chart = ({ data, title, formatLabel, dataKey, color = "bg-blue-500", hoverColor = "hover:bg-blue-600" }) => {
-    if(!data || Object.keys(data).length === 0) {
-        return (
-            <div className="w-full p-4 bg-gray-50 rounded-lg border flex items-center justify-center h-full min-h-[262px]">
-                <p className="text-sm text-gray-500">{title} - No data available.</p>
-            </div>
-        );
-    }
+const HorizontalBarChart = ({ data, title, color = "bg-blue-500" }) => {
+    if (!data || Object.keys(data).length === 0) return <p className="text-sm text-gray-500 text-center py-4">No data available for {title}.</p>;
+    
+    const total = Object.values(data).reduce((sum, value) => sum + value, 0);
+    if (total === 0) return <p className="text-sm text-gray-500 text-center py-4">No data available for {title}.</p>;
 
-    const values = Object.values(data);
-    const maxValue = Math.max(...values, 1);
-    const chartHeight = 150;
+    const sortedData = Object.entries(data).sort(([,a],[,b]) => b - a);
 
     return (
-        <div className="w-full p-4 bg-gray-50 rounded-lg border">
-            <h4 className="text-md font-semibold text-gray-700 mb-3">{title}</h4>
-            <div className="flex justify-between items-end h-[180px] space-x-2">
-                {Object.entries(data).map(([key, value]) => {
-                    const barHeight = (value / maxValue) * chartHeight;
-                    return (
-                        <div key={key} className="flex flex-col items-center flex-1 h-full justify-end group">
-                            <div className="text-xs font-bold text-gray-500 group-hover:text-gray-800 transition-colors">{dataKey === 'currency' ? `₱${Math.round(value)}` : value}</div>
-                            <div 
-                                className={`w-full ${color} ${hoverColor} transition-all duration-200 rounded-t-sm`}
-                                style={{ height: `${barHeight}px` }}
-                                title={`${formatLabel(key)}: ${dataKey === 'currency' ? `₱${value.toFixed(2)}` : value}`}
-                            ></div>
-                            <div className="text-xs font-medium text-gray-500 mt-1 border-t border-gray-300 w-full text-center pt-1">{formatLabel(key)}</div>
+        <div className="space-y-2">
+            <h4 className="text-md font-semibold text-gray-700">{title}</h4>
+            {sortedData.map(([label, value]) => {
+                const percentage = total > 0 ? (value / total) * 100 : 0;
+                return (
+                    <div key={label} className="text-xs">
+                        <div className="flex justify-between mb-0.5">
+                            <span className="font-medium text-gray-600 capitalize">{label.replace('_', ' ')}</span>
+                            <span>{value.toLocaleString()} ({percentage.toFixed(1)}%)</span>
                         </div>
-                    );
-                })}
-            </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div className={`${color} h-2.5 rounded-full`} style={{ width: `${percentage}%` }}></div>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 };
+
 
 const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
     const [stats, setStats] = useState(null);
@@ -55,17 +48,18 @@ const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
                 DataService.getUsersStats(db),
                 DataService.getTicketsStats(db),
                 DataService.getRevenueStats(db),
-                DataService.getDailyRevenueStats(db, 30),
                 DataService.getPaymentDayOfWeekStats(db)
             ]);
 
-            const [usersResult, ticketsResult, revenueResult, dailyRevenueResult, paymentDayResult] = results;
+            const [usersResult, ticketsResult, revenueResult, paymentDayResult] = results;
             
             const newStats = {};
-            if (usersResult.status === 'fulfilled' && usersResult.value.success) newStats.usersByRole = usersResult.value.data.byRole;
+            if (usersResult.status === 'fulfilled' && usersResult.value.success) {
+                newStats.usersByRole = usersResult.value.data.byRole;
+                newStats.totalUsers = usersResult.value.data.total;
+            }
             if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) newStats.ticketStats = ticketsResult.value.data;
             if (revenueResult.status === 'fulfilled' && revenueResult.value.success) newStats.monthlyRevenue = revenueResult.value.data;
-            if (dailyRevenueResult.status === 'fulfilled' && dailyRevenueResult.value.success) newStats.dailyRevenue = dailyRevenueResult.value.data;
             if (paymentDayResult.status === 'fulfilled' && paymentDayResult.value.success) newStats.paymentDayStats = paymentDayResult.value.data;
             
             setStats(newStats);
@@ -85,7 +79,7 @@ const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
         const printWindow = window.open('', '', 'height=800,width=1000');
         printWindow.document.write('<html><head><title>AGWA System Analytics Report</title>');
         printWindow.document.write('<script src="https://cdn.tailwindcss.com"></script>');
-        printWindow.document.write('<style>body { font-family: sans-serif; } @media print { .no-print { display: none !important; } .print-section { page-break-inside: avoid; } }</style>');
+        printWindow.document.write('<style>body {font-family: sans-serif;-webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;} @media print { .no-print { display: none !important; } .print-section { page-break-inside: avoid; margin-bottom: 2rem; } }</style>');
         printWindow.document.write('</head><body class="p-8">');
         printWindow.document.write(printContent);
         printWindow.document.write('</body></html>');
@@ -94,6 +88,8 @@ const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
     };
     
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const totalRevenue = stats?.monthlyRevenue ? Object.values(stats.monthlyRevenue).reduce((sum, val) => sum + val, 0) : 0;
+    const avgMonthlyRevenue = totalRevenue / (stats?.monthlyRevenue ? Object.keys(stats.monthlyRevenue).length : 1);
 
     if (isLoading) {
         return <LoadingSpinner message="Loading system analytics..." className="mt-10 h-64" />;
@@ -116,54 +112,60 @@ const StatisticsDashboard = ({ showNotification = console.log, userData }) => {
                 </div>
             </div>
 
+            {error && <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 my-4 flex items-center" role="alert"><Info size={20} className="mr-3" /><p>{error}</p></div>}
+            
             <div id="stats-print-area">
-                <div className="hidden print:block text-center mb-8">
-                    <h1 className="text-3xl font-bold">AGWA System Analytics Report</h1>
+                <header className="hidden print:block text-center mb-8">
+                    <h1 className="text-3xl font-bold text-blue-700">AGWA System Analytics Report</h1>
                     <p className="text-sm text-gray-500">Generated on: {new Date().toLocaleString()}</p>
-                </div>
+                </header>
 
-                {error && <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-4 flex items-center" role="alert"><Info size={20} className="mr-3" /><p>{error}</p></div>}
-                
-                <div className="space-y-10">
-                    <div className="print-section">
-                        <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center"><DollarSign size={22} className="mr-2 text-green-600"/>Revenue Analysis</h3>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <Chart data={stats?.monthlyRevenue} title="Monthly Collected Revenue (PHP)" dataKey="currency" formatLabel={(key) => { const [y, m] = key.split('-'); return `${monthNames[m-1]} '${y.slice(-2)}`; }} />
-                            <Chart data={stats?.dailyRevenue} title="Daily Collected Revenue (Last 30 Days)" dataKey="currency" color="bg-green-500" hoverColor="hover:bg-green-600" formatLabel={(key) => key.slice(-2)}/>
-                        </div>
-                    </div>
-                     <div className="print-section">
-                        <h3 className="text-xl font-semibold text-gray-800 mb-4 mt-8 pt-6 border-t flex items-center"><MessageSquare size={22} className="mr-2 text-purple-600"/>Support Ticket Analysis</h3>
-                        {stats?.ticketStats ? (
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                <DashboardInfoCard title="Total Tickets" value={stats.ticketStats.total} icon={FileText} />
-                                <DashboardInfoCard title="Open" value={stats.ticketStats.open} icon={AlertTriangle} borderColor="border-red-500" iconColor="text-red-500"/>
-                                <DashboardInfoCard title="In Progress" value={stats.ticketStats.inProgress} icon={Loader2} borderColor="border-yellow-500" iconColor="text-yellow-500"/>
-                                <DashboardInfoCard title="Resolved" value={stats.ticketStats.resolved} icon={CheckCircle} borderColor="border-blue-500" iconColor="text-blue-500"/>
-                                <DashboardInfoCard title="Closed" value={stats.ticketStats.closed} icon={CheckCircle} borderColor="border-gray-500" iconColor="text-gray-500"/>
+                <div className="space-y-8">
+                    <section className="print-section">
+                        <h3 className="text-xl font-semibold text-gray-800 mb-2 flex items-center"><span className="font-bold text-2xl mr-2 text-green-600">₱</span>Revenue Analysis</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Total collected revenue over the displayed period is <strong>₱{totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong>,
+                            with a monthly average of <strong>₱{avgMonthlyRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong>.
+                        </p>
+                        <div className="p-4 bg-gray-50 rounded-lg border">
+                            <h4 className="text-md font-semibold text-gray-700 mb-3">Monthly Collected Revenue (PHP)</h4>
+                            <div className="flex justify-between items-end h-[180px] space-x-2">
+                                {stats?.monthlyRevenue && Object.entries(stats.monthlyRevenue).map(([key, value]) => {
+                                    const maxValue = Math.max(...Object.values(stats.monthlyRevenue), 1);
+                                    const barHeight = (value / maxValue) * 150;
+                                    const [y, m] = key.split('-');
+                                    return (
+                                        <div key={key} className="flex flex-col items-center flex-1 h-full justify-end group">
+                                            <div className="text-xs font-bold text-gray-500 group-hover:text-gray-800 transition-colors">₱{Math.round(value/1000)}k</div>
+                                            <div className="w-full bg-green-500 hover:bg-green-600 transition-all duration-200 rounded-t-sm" style={{ height: `${barHeight}px` }} title={`₱${value.toFixed(2)}`}></div>
+                                            <div className="text-xs font-medium text-gray-500 mt-1 border-t border-gray-300 w-full text-center pt-1">{`${monthNames[m-1]} '${y.slice(-2)}`}</div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ) : <p className="text-gray-500">Ticket data unavailable.</p>}
-                    </div>
-
-                    <div className="print-section">
-                        <h3 className="text-xl font-semibold text-gray-800 mb-4 mt-8 pt-6 border-t flex items-center"><Calendar size={22} className="mr-2 text-teal-600"/>User & Payment Patterns</h3>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                           <Chart data={stats?.paymentDayStats} title="Peak Payment Days (By # of Payments)" dataKey="count" color="bg-teal-500" hoverColor="hover:bg-teal-600" formatLabel={(key) => key}/>
-                           {stats?.usersByRole && (
-                                <div className="p-4 bg-gray-50 rounded-lg border">
-                                    <h4 className="text-md font-semibold text-gray-700 mb-3">Users by Role</h4>
-                                    <div className="space-y-2">
-                                        {Object.entries(stats.usersByRole).map(([role, count]) => (
-                                            <div key={role} className="flex justify-between items-center bg-white p-2 rounded-md border text-sm">
-                                                <p className="text-gray-600 capitalize font-medium">{role.replace('_', ' ')}</p>
-                                                <p className="font-bold text-gray-800">{count}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                           )}
                         </div>
-                    </div>
+                    </section>
+                    
+                    <section className="print-section grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t">
+                        <div className="p-4 bg-gray-50 rounded-lg border">
+                             <h3 className="text-xl font-semibold text-gray-800 mb-3 flex items-center"><Users size={22} className="mr-2 text-blue-600"/>User Analysis</h3>
+                             <p className="text-sm text-gray-600 mb-4">There are currently <strong>{stats?.totalUsers || 0}</strong> registered users in the system.</p>
+                             <HorizontalBarChart data={stats?.usersByRole} title="Users by Role" color="bg-blue-500"/>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-lg border">
+                             <h3 className="text-xl font-semibold text-gray-800 mb-3 flex items-center"><MessageSquare size={22} className="mr-2 text-purple-600"/>Support Ticket Analysis</h3>
+                             <p className="text-sm text-gray-600 mb-4">A total of <strong>{stats?.ticketStats?.total || 0}</strong> tickets have been created.</p>
+                             <HorizontalBarChart data={stats?.ticketStats} title="Tickets by Status" color="bg-purple-500"/>
+                        </div>
+                    </section>
+
+                     <section className="print-section pt-6 border-t">
+                        <div className="p-4 bg-gray-50 rounded-lg border">
+                             <h3 className="text-xl font-semibold text-gray-800 mb-3 flex items-center"><Calendar size={22} className="mr-2 text-teal-600"/>Payment Day Analysis</h3>
+                             <p className="text-sm text-gray-600 mb-4">This chart shows which days of the week are most popular for making payments.</p>
+                             <HorizontalBarChart data={stats?.paymentDayStats} title="Peak Payment Days" color="bg-teal-500"/>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>

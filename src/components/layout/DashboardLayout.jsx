@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar.jsx';
-import PageLoader from '../ui/PageLoader.jsx';
 import CustomerDashboardMain from '../../features/customer/CustomerDashboardMain.jsx';
 import CustomerBillsSection from '../../features/customer/CustomerBillsSection.jsx';
 import MyProfileSection from '../../features/common/MyProfileSection.jsx';
@@ -28,7 +27,7 @@ import MyTicketsSection from '../../features/customer/MyTicketsSection.jsx';
 import NotFound from '../core/NotFound.jsx';
 import ChatbotModal from '../ui/ChatbotModal.jsx';
 import LinkAccountModal from '../auth/LinkAccountModal.jsx';
-import { MessageSquare as ChatIcon } from 'lucide-react';
+import { MessageSquare as ChatIcon, Menu } from 'lucide-react';
 import * as billingService from '../../services/billingService.js';
 import * as dataService from '../../services/dataService.js';
 import * as userUtils from '../../utils/userUtils.js';
@@ -98,23 +97,23 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
     const navItems = [
         { name: 'Dashboard', iconName: 'Home', section: 'mainDashboard', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'My Profile', iconName: 'UserCog', section: 'myProfile', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
-        { name: 'View Announcements', iconName: 'Megaphone', section: 'viewAnnouncements', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'My Bills & Payments', iconName: 'FileText', section: 'myBills', roles: ['customer'] },
         { name: 'My Support Tickets', iconName: 'MessageSquare', section: 'myTickets', roles: ['customer', 'clerk_cashier', 'meter_reader'] },
         { name: 'Report an Issue', iconName: 'AlertTriangle', section: 'reportIssue', roles: ['customer', 'meter_reader', 'clerk_cashier'] },
-        { name: 'User Management', iconName: 'Users', section: 'userManagement', roles: ['admin'] },
-        { name: 'Batch Billing', iconName: 'FileText', section: 'batchBilling', roles: ['admin'] },
-        { name: 'Route Management', iconName: 'Map', section: 'routeManagement', roles: ['admin'] },
-        { name: 'Support Tickets', iconName: 'MessageSquare', section: 'supportTickets', roles: ['admin'] },
-        { name: 'Manage Announcements', iconName: 'Edit', section: 'manageAnnouncements', roles: ['admin'] },
-        { name: 'System Analytics', iconName: 'BarChart3', section: 'systemAnalytics', roles: ['admin'] },
-        { name: 'Meter Reading Mgt.', iconName: 'Gauge', section: 'editMeterReadingsAdmin', roles: ['admin'] },
-        { name: 'System Settings', iconName: 'Settings', section: 'systemSettings', roles: ['admin'] },
         { name: 'Assigned Routes', iconName: 'Map', section: 'assignedRoutes', roles: ['meter_reader'] },
         { name: 'Submit Reading', iconName: 'ClipboardEdit', section: 'searchAndSubmitReading', roles: ['meter_reader'] },
         { name: 'Search Customer', iconName: 'Search', section: 'searchCustomerMeterReader', roles: ['meter_reader'] },
         { name: 'Process Walk-in Payment', iconName: 'Banknote', section: 'walkInPayments', roles: ['clerk_cashier'] },
         { name: 'Search Account / Bill', iconName: 'FileSearch', section: 'searchAccountOrBill', roles: ['clerk_cashier'] },
+        { name: 'User Management', iconName: 'Users', section: 'userManagement', roles: ['admin'] },
+        { name: 'Support Tickets', iconName: 'MessageSquare', section: 'supportTickets', roles: ['admin'] },
+        { name: 'System Analytics', iconName: 'BarChart3', section: 'systemAnalytics', roles: ['admin'] },
+        { name: 'Manage Announcements', iconName: 'Edit', section: 'manageAnnouncements', roles: ['admin'] },
+        { name: 'Meter Reading Mgt.', iconName: 'Gauge', section: 'editMeterReadingsAdmin', roles: ['admin'] },
+        { name: 'Route Management', iconName: 'Map', section: 'routeManagement', roles: ['admin'] },
+        { name: 'Batch Billing', iconName: 'FileText', section: 'batchBilling', roles: ['admin'] },
+        { name: 'System Settings', iconName: 'Settings', section: 'systemSettings', roles: ['admin'] },
+        { name: 'View Announcements', iconName: 'Megaphone', section: 'viewAnnouncements', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'FAQs', iconName: 'HelpCircle', section: 'faqs', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'About Us', iconName: 'Info', section: 'aboutUs', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'Contact Us', iconName: 'PhoneCall', section: 'contactUs', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
@@ -160,25 +159,41 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex font-sans">
-            <Sidebar userData={userData} navItems={availableNavItems} activeSection={activeSection} onNavigate={handleNavigate} onLogout={handleLogout} isMobileOpen={isSidebarOpenMobile} onMobileClose={() => setIsSidebarOpenMobile(false)} />
-            <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-                <main className="flex-grow overflow-y-auto">
-                    {banner && (
-                        <div className="sticky top-0 z-20 bg-yellow-400 text-center p-2 text-yellow-900 font-semibold shadow-md text-sm">
-                           {banner.text}
-                        </div>
-                    )}
-                    <div className="p-4 sm:p-6 lg:p-8">
-                        {renderSection()}
+        <div className="bg-gray-100 font-sans">
+            <Sidebar 
+                userData={userData} 
+                navItems={availableNavItems} 
+                activeSection={activeSection} 
+                onNavigate={handleNavigate} 
+                onLogout={handleLogout} 
+                isMobileOpen={isSidebarOpenMobile} 
+                setMobileOpen={setIsSidebarOpenMobile}
+            />
+
+            <div className="lg:pl-64">
+                <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 backdrop-blur-lg shadow-sm p-3 lg:hidden">
+                    <button onClick={() => setIsSidebarOpenMobile(true)} className="text-gray-600 hover:text-gray-900">
+                        <Menu size={28} />
+                    </button>
+                    <h1 className="text-lg font-semibold text-blue-700">AGWA</h1>
+                </header>
+                
+                {banner && (
+                    <div className="bg-yellow-400 text-center p-2 text-yellow-900 font-semibold shadow-md text-sm">
+                       {banner.text}
                     </div>
+                )}
+                
+                <main className="p-4 sm:p-6 lg:p-8">
+                    {renderSection()}
                 </main>
             </div>
+            
             {userData && (
                 <>
                     <button
                         onClick={() => setIsChatbotOpen(true)}
-                        className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transform hover:scale-110 transition-all duration-200 ease-in-out z-50"
+                        className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transform hover:scale-110 transition-all duration-200 ease-in-out z-40"
                         aria-label="Open Chatbot"
                     >
                         <ChatIcon size={28} />
