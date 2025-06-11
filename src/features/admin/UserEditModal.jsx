@@ -7,7 +7,16 @@ const commonInputClass = "w-full px-3 py-2.5 rounded-lg bg-gray-50 border border
 const commonDisabledClass = "bg-gray-200 cursor-not-allowed text-gray-500";
 
 const UserEditModal = ({ user, isOpen, onClose, onSave, isSaving, determineServiceTypeAndRole }) => {
-    const [formData, setFormData] = useState({});
+    const [formData, setFormData] = useState({
+        displayName: '',
+        email: '',
+        accountNumber: '',
+        accountStatus: 'Active',
+        role: 'customer',
+        serviceType: 'Residential',
+        meterSerialNumber: '',
+        meterSize: '1/2"',
+    });
     const [addressForm, setAddressForm] = useState({ district: '', barangay: '', street: '', landmark: '' });
     const [districts, setDistricts] = useState([]);
     const [barangays, setBarangays] = useState([]);
@@ -27,7 +36,12 @@ const UserEditModal = ({ user, isOpen, onClose, onSave, isSaving, determineServi
             });
              if (user.serviceAddress && typeof user.serviceAddress === 'object') {
                 const currentDistrict = user.serviceAddress.district || '';
-                setAddressForm(user.serviceAddress);
+                setAddressForm({
+                    district: user.serviceAddress.district || '',
+                    barangay: user.serviceAddress.barangay || '',
+                    street: user.serviceAddress.street || '',
+                    landmark: user.serviceAddress.landmark || '',
+                });
                 if (currentDistrict) {
                     setBarangays(geoService.getBarangaysInDistrict(currentDistrict));
                 }

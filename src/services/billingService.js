@@ -45,6 +45,7 @@ export const calculateBillDetails = (
     else if (meterSizeCleaned === '8' || meterSizeCleaned === '200mm') maintenanceServiceCharge = 50.00;
     else maintenanceServiceCharge = 1.50;
 
+
     if (serviceType === 'Residential Low-Income') {
         if (cons <= 10) basicCharge = 70.07;
         else if (cons <= 20) basicCharge = 70.07 + (cons - 10) * 14.29;
@@ -82,10 +83,27 @@ export const calculateBillDetails = (
             else basicCharge += (10*39.90) + (20*49.22) + (20*62.55) + (20*72.88) + (50*76.14) + (50*79.42) + (excessCons-170)*82.67;
         }
     } else if (serviceType === 'Commercial' || serviceType === 'Admin') {
-        let remainingCons = cons; basicCharge = 0;
-        const tiers = [ { limit: 10, rate: 0, fixed: 512.30 }, { limit: 20, rate: 53.61 }, { limit: 40, rate: 58.98 }, { limit: 60, rate: 64.33 }, { limit: 80, rate: 69.69 }, { limit: 100, rate: 72.88 }, { limit: 150, rate: 76.14 }, { limit: 200, rate: 79.42 }, { limit: Infinity, rate: 82.67 } ];
-        if (remainingCons > 0 && tiers[0].fixed) { basicCharge += tiers[0].fixed; remainingCons -= tiers[0].limit; }
-        for (let i = 1; i < tiers.length; i++) { if (remainingCons <= 0) break; const prevLimit = tiers[i-1].limit; const currentTierConsumptionCap = tiers[i].limit - prevLimit; const chargeableCons = Math.min(remainingCons, currentTierConsumptionCap); basicCharge += chargeableCons * tiers[i].rate; remainingCons -= chargeableCons; }
+        const tiers = [
+            { limit: 10, rate: 0, fixed: 512.30 }, { limit: 20, rate: 53.61 }, 
+            { limit: 40, rate: 58.98 }, { limit: 60, rate: 64.33 }, 
+            { limit: 80, rate: 69.69 }, { limit: 100, rate: 72.88 }, 
+            { limit: 150, rate: 76.14 }, { limit: 200, rate: 79.42 }, 
+            { limit: Infinity, rate: 82.67 }
+        ];
+        let remainingCons = cons;
+        basicCharge = 0;
+        if (remainingCons > 0 && tiers[0].fixed) {
+            basicCharge += tiers[0].fixed;
+            remainingCons -= tiers[0].limit;
+        }
+        for (let i = 1; i < tiers.length; i++) {
+            if (remainingCons <= 0) break;
+            const prevLimit = tiers[i-1].limit;
+            const currentTierConsumptionCap = tiers[i].limit - prevLimit;
+            const chargeableCons = Math.min(remainingCons, currentTierConsumptionCap);
+            basicCharge += chargeableCons * tiers[i].rate;
+            remainingCons -= chargeableCons;
+        }
     } else if (serviceType === 'Industrial' || serviceType === 'Meter Reading Personnel') {
         basicCharge = cons * 72.68;
     } else { 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FileText, Sparkles, Loader2, Info, Eye } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import Modal from '../../components/ui/Modal.jsx';
@@ -26,34 +26,38 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
 
     const { isOnlinePaymentsEnabled = true } = systemSettings;
 
-    const fetchBills = useCallback(async () => {
-        setIsLoading(true);
-        setError('');
-        const result = await DataService.getBillsForUser(db, user.uid);
-        if (result.success) {
-            const sortedBills = result.data.sort((a, b) => {
-                const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(0);
-                const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(0);
-                return dateB - dateA;
-            });
-            
-            const billsWithDetails = sortedBills.map(bill => {
-                const charges = billingService(bill.consumption, userData.serviceType, userData.meterSize, systemSettings);
-                const totalAmount = charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
-                return { ...bill, amount: totalAmount, calculatedCharges: charges };
-            });
-
-            setBills(billsWithDetails);
-        } else {
-            setError(result.error || "Failed to fetch your bills.");
-            showNotification(result.error || "Failed to fetch bills.", "error");
-        }
-        setIsLoading(false);
-    }, [db, user.uid, showNotification, billingService, userData.serviceType, userData.meterSize, systemSettings]);
+    const settingsJson = JSON.stringify(systemSettings);
 
     useEffect(() => {
-        fetchBills();
-    }, [fetchBills]);
+        const fetchBills = async () => {
+            setIsLoading(true);
+            setError('');
+            const result = await DataService.getBillsForUser(db, user.uid);
+            if (result.success) {
+                const sortedBills = result.data.sort((a, b) => {
+                    const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(0);
+                    const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(0);
+                    return dateB - dateA;
+                });
+                
+                const billsWithDetails = sortedBills.map(bill => {
+                    const charges = billingService(bill.consumption, userData.serviceType, userData.meterSize, systemSettings);
+                    const totalAmount = charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
+                    return { ...bill, amount: totalAmount, calculatedCharges: charges };
+                });
+
+                setBills(billsWithDetails);
+            } else {
+                setError(result.error || "Failed to fetch your bills.");
+                showNotification(result.error || "Failed to fetch bills.", "error");
+            }
+            setIsLoading(false);
+        };
+
+        if (user?.uid && userData?.serviceType) {
+            fetchBills();
+        }
+    }, [db, user.uid, showNotification, billingService, userData.serviceType, userData.meterSize, settingsJson]);
 
     const handlePayBillClick = (bill) => {
         setBillToPay(bill);
@@ -74,7 +78,7 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
             showNotification("Payment successful! Your bill status has been updated.", "success");
             setIsPaymentModalOpen(false);
             setBillToPay(null);
-            fetchBills();
+            setBills(prevBills => prevBills.map(b => b.id === billId ? { ...b, status: 'Paid' } : b));
         } else {
             showNotification(result.error || "Payment processing failed.", "error");
         }

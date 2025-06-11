@@ -49,28 +49,14 @@ const FaqsSection = () => {
                                 <ChevronDown size={24} />
                             </span>
                         </summary>
-                        <div className="text-gray-600 mt-3 group-open:animate-contentAppear leading-relaxed text-xs sm:text-sm prose prose-sm max-w-none">
-                            <p>{faq.a}</p>
+                        <div className="text-gray-600 mt-3 prose prose-sm max-w-none grid grid-rows-[0fr] group-open:grid-rows-[1fr] transition-all duration-500 ease-in-out">
+                            <div className="overflow-hidden">
+                                <p className="pb-2">{faq.a}</p>
+                            </div>
                         </div>
                     </details>
                 ))}
             </div>
-            <style jsx global>{`
-                @keyframes contentAppear {
-                    from { opacity: 0; max-height: 0; transform: translateY(-10px); }
-                    to { opacity: 1; max-height: 1000px; /* Adjust if content can be very long */ transform: translateY(0); }
-                }
-                .group-open\\:animate-contentAppear {
-                    animation: contentAppear 0.4s ease-out forwards;
-                    overflow: hidden; /* Important for max-height transition */
-                }
-                details summary::-webkit-details-marker {
-                    display: none; /* Hide default marker in Chrome/Safari */
-                }
-                details summary {
-                    list-style: none; /* Hide default marker in Firefox */
-                }
-            `}</style>
         </div>
     );
 };
