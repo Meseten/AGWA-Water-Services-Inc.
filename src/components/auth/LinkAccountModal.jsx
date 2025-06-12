@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Hash, Link, Loader2 } from 'lucide-react';
 import Modal from '../ui/Modal';
-import { commonInputClass, commonButtonClass } from '../../styles/authFormStyles';
+import { commonInputClass, getCommonButtonClasses } from '../../styles/authFormStyles';
 
 const LinkAccountModal = ({ isOpen, onLink, isLinking, error }) => {
     const [accountNumber, setAccountNumber] = useState('');
@@ -44,7 +44,7 @@ const LinkAccountModal = ({ isOpen, onLink, isLinking, error }) => {
                     />
                 </div>
                 
-                <button type="submit" className={commonButtonClass} disabled={isLinking || !accountNumber.trim()}>
+                <button type="submit" className={getCommonButtonClasses(isLinking || !accountNumber.trim())} disabled={isLinking || !accountNumber.trim()}>
                     {isLinking ? <Loader2 className="animate-spin inline mr-2" size={18} /> : <Link className="inline mr-2" size={18}/>}
                     {isLinking ? 'Linking Account...' : 'Link My Account'}
                 </button>

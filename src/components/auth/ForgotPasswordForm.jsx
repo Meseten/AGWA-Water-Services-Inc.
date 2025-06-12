@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Loader2, ArrowLeft } from 'lucide-react';
-import { commonInputClass, commonButtonClass } from '../../styles/authFormStyles.js';
+import { commonInputClass, getCommonButtonClasses } from '../../styles/authFormStyles.js';
 
 const ForgotPasswordForm = ({ handleForgotPasswordExternal, navigateTo, authActionLoading }) => {
     const [email, setEmail] = useState('');
@@ -29,7 +29,7 @@ const ForgotPasswordForm = ({ handleForgotPasswordExternal, navigateTo, authActi
                 <button
                     type="button"
                     onClick={() => navigateTo('login')}
-                    className={`${commonButtonClass} bg-green-600 hover:bg-green-700 focus:ring-green-500 mt-4`}
+                    className={`${getCommonButtonClasses(false)} bg-green-600 hover:bg-green-700 focus:ring-green-500 mt-4`}
                 >
                     <ArrowLeft size={18} className="mr-2" /> Back to Login
                 </button>
@@ -57,7 +57,7 @@ const ForgotPasswordForm = ({ handleForgotPasswordExternal, navigateTo, authActi
             </div>
             <button
                 type="submit"
-                className={commonButtonClass}
+                className={getCommonButtonClasses(authActionLoading || !email.trim())}
                 disabled={authActionLoading || !email.trim()}
             >
                 {authActionLoading ? <Loader2 className="animate-spin mr-2" size={20} /> : null}
