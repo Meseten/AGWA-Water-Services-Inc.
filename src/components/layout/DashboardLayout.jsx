@@ -95,24 +95,38 @@ const DashboardLayout = ({ user, userData, setUserData, handleLogout, showNotifi
     };
 
     const navItems = [
+        // --- Group 1: Core (Everyone) ---
         { name: 'Dashboard', iconName: 'Home', section: 'mainDashboard', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'My Profile', iconName: 'UserCog', section: 'myProfile', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
+
+        // --- Group 2: Role-Specific Primary Tasks ---
+        // Customer
         { name: 'My Bills & Payments', iconName: 'FileText', section: 'myBills', roles: ['customer'] },
-        { name: 'My Support Tickets', iconName: 'MessageSquare', section: 'myTickets', roles: ['customer', 'clerk_cashier', 'meter_reader'] },
-        { name: 'Report an Issue', iconName: 'AlertTriangle', section: 'reportIssue', roles: ['customer', 'meter_reader', 'clerk_cashier'] },
+        // Meter Reader
         { name: 'Assigned Routes', iconName: 'Map', section: 'assignedRoutes', roles: ['meter_reader'] },
         { name: 'Submit Reading', iconName: 'ClipboardEdit', section: 'searchAndSubmitReading', roles: ['meter_reader'] },
         { name: 'Search Customer', iconName: 'Search', section: 'searchCustomerMeterReader', roles: ['meter_reader'] },
+        // Clerk/Cashier
         { name: 'Process Walk-in Payment', iconName: 'Banknote', section: 'walkInPayments', roles: ['clerk_cashier'] },
         { name: 'Search Account / Bill', iconName: 'FileSearch', section: 'searchAccountOrBill', roles: ['clerk_cashier'] },
+        
+        // --- Group 3: Shared Support Tasks ---
+        { name: 'My Support Tickets', iconName: 'MessageSquare', section: 'myTickets', roles: ['customer', 'clerk_cashier', 'meter_reader'] },
+        { name: 'Report an Issue', iconName: 'AlertTriangle', section: 'reportIssue', roles: ['customer', 'meter_reader', 'clerk_cashier'] },
+
+        // --- Group 4: Admin Core Management ---
         { name: 'User Management', iconName: 'Users', section: 'userManagement', roles: ['admin'] },
         { name: 'Support Tickets', iconName: 'MessageSquare', section: 'supportTickets', roles: ['admin'] },
-        { name: 'System Analytics', iconName: 'BarChart3', section: 'systemAnalytics', roles: ['admin'] },
         { name: 'Manage Announcements', iconName: 'Edit', section: 'manageAnnouncements', roles: ['admin'] },
+
+        // --- Group 5: Admin System & Data Management ---
         { name: 'Meter Reading Mgt.', iconName: 'Gauge', section: 'editMeterReadingsAdmin', roles: ['admin'] },
-        { name: 'Route Management', iconName: 'Map', section: 'routeManagement', roles: ['admin'] },
         { name: 'Batch Billing', iconName: 'FileText', section: 'batchBilling', roles: ['admin'] },
+        { name: 'Route Management', iconName: 'Map', section: 'routeManagement', roles: ['admin'] },
+        { name: 'System Analytics', iconName: 'BarChart3', section: 'systemAnalytics', roles: ['admin'] },
         { name: 'System Settings', iconName: 'Settings', section: 'systemSettings', roles: ['admin'] },
+        
+        // --- Group 6: General Information (Everyone) ---
         { name: 'View Announcements', iconName: 'Megaphone', section: 'viewAnnouncements', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'FAQs', iconName: 'HelpCircle', section: 'faqs', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
         { name: 'About Us', iconName: 'Info', section: 'aboutUs', roles: ['customer', 'meter_reader', 'admin', 'clerk_cashier'] },
