@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { Printer, X, Info, Download, FileText } from 'lucide-react';
 import { formatDate } from '../../utils/userUtils';
 import Barcode from './Barcode.jsx';
+import DOMPurify from 'dompurify';
 
 const InvoiceView = ({
     isOpen,
@@ -35,6 +36,7 @@ const InvoiceView = ({
     const handlePrint = () => {
         const printableContent = document.getElementById('invoice-content-to-print-modal-fullscreen');
         if (printableContent) {
+            const sanitizedContent = DOMPurify.sanitize(printableContent.innerHTML);
             const printWindow = window.open('', '_blank', 'height=800,width=1000,scrollbars=yes');
             printWindow.document.write('<html><head><title>AGWA Water Services - Invoice</title>');
             printWindow.document.write('<script src="https://cdn.tailwindcss.com"></script>');
@@ -47,7 +49,7 @@ const InvoiceView = ({
                         top: 40%;
                         left: 50%;
                         transform: translate(-50%, -50%) rotate(-20deg);
-                        color: #e53e3e; /* Darker red */
+                        color: #e53e3e;
                         border: 5px double #e53e3e;
                         padding: 12px 30px;
                         border-radius: 6px;
@@ -84,7 +86,7 @@ const InvoiceView = ({
                 </style>
             `);
             printWindow.document.write('</head><body><div class="invoice-container-print">');
-            printWindow.document.write(printableContent.innerHTML);
+            printWindow.document.write(sanitizedContent);
             printWindow.document.write('</div></body></html>');
             printWindow.document.close();
             setTimeout(() => {
@@ -118,7 +120,7 @@ const InvoiceView = ({
                         top: 40%;
                         left: 50%;
                         transform: translate(-50%, -50%) rotate(-20deg);
-                        color: #e53e3e; /* Darker red */
+                        color: #e53e3e;
                         border: 5px double #e53e3e;
                         padding: 12px 30px;
                         border-radius: 6px;

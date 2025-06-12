@@ -1,11 +1,11 @@
-const GEMINI_API_KEY = "AIzaSyAx600ru2hfy_h7yq8o2rc2yM-WOg_xvdE";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 export const callGeminiAPI = async (promptText) => {
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GOOGLE_GEMINI_API_KEY_HERE") {
-        throw new Error("Gemini API key is missing. Please configure it in geminiService.js.");
+    if (!GEMINI_API_KEY) {
+        throw new Error("Gemini API key is missing. Please configure it in your .env file as VITE_GEMINI_API_KEY.");
     }
-    
+
     const payload = {
         contents: [{ parts: [{ text: promptText }] }],
     };
@@ -44,7 +44,7 @@ export const generateAnnouncement = async ({ title, reason, area, time }) => {
         You are a professional communications officer for AGWA Water Services.
         Generate a formal, clear, and customer-friendly public service announcement based on the following details.
         Use markdown for formatting, especially **bolding** for key information.
-        
+
         **Announcement Details:**
         - **Primary Title/Reason:** ${title || reason}
         - **Event Description:** ${reason}
@@ -62,6 +62,6 @@ export const generateAnnouncement = async ({ title, reason, area, time }) => {
 
         Generate the full announcement content now.
     `;
-    
+
     return callGeminiAPI(prompt);
 };

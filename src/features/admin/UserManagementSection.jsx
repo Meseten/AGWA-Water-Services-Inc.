@@ -5,6 +5,7 @@ import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
 import ConfirmationModal from "../../components/ui/ConfirmationModal.jsx";
 import * as DataService from "../../services/dataService.js";
 import { formatDate } from "../../utils/userUtils.js";
+import { FixedSizeList as List } from 'react-window';
 
 const commonInputClass = "w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150 text-sm placeholder-gray-400";
 
@@ -16,7 +17,7 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
     const [newStatusForUser, setNewStatusForUser] = useState('');
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    
+
     const [searchTerm, setSearchTerm] = useState("");
     const [filterRole, setFilterRole] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -57,7 +58,7 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
         }
         setActionLoading(false);
     };
-    
+
     const openStatusChangeModal = (user, targetStatus) => {
         setUserToModify(user);
         setNewStatusForUser(targetStatus);
@@ -67,13 +68,12 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
     const confirmStatusChange = async () => {
         if (!userToModify || !newStatusForUser) return;
         setActionLoading(true);
-        
-        // This is the "soft delete" part: disable the auth account
+
         await DataService.updateUserProfile(db, userToModify.id, { accountStatus: newStatusForUser });
-        
+
         showNotification(`User account status changed to ${newStatusForUser}.`, "success");
         fetchUsers();
-        
+
         setIsStatusModalOpen(false);
         setUserToModify(null);
         setNewStatusForUser('');
@@ -88,11 +88,9 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
     const confirmDeleteUser = async () => {
         if (!userToModify) return;
         setActionLoading(true);
-        
-        // Step 1: Disable the user in Firebase Auth via a status change.
+
         await DataService.updateUserProfile(db, userToModify.id, { accountStatus: 'Suspended' });
-        
-        // Step 2: Delete the Firestore profile documents.
+
         const deleteResult = await DataService.deleteUserProfile(db, userToModify.id);
 
         if (deleteResult.success) {
@@ -100,10 +98,9 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
             fetchUsers();
         } else {
             showNotification(deleteResult.error || "Failed to delete user profile.", "error");
-            // Optional: Revert the status change if deletion fails
             await DataService.updateUserProfile(db, userToModify.id, { accountStatus: userToModify.accountStatus });
         }
-        
+
         setIsDeleteModalOpen(false);
         setUserToModify(null);
         setActionLoading(false);
@@ -120,11 +117,34 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
 
     const roleColors = { admin: 'bg-purple-100 text-purple-700', customer: 'bg-blue-100 text-blue-700', meter_reader: 'bg-teal-100 text-teal-700', clerk_cashier: 'bg-indigo-100 text-indigo-700', unknown: 'bg-gray-100 text-gray-700' };
     const statusColors = { Active: 'bg-green-100 text-green-700', Inactive: 'bg-gray-200 text-gray-600', Suspended: 'bg-red-100 text-red-700', 'Profile Missing': 'bg-yellow-100 text-yellow-700', Unknown: 'bg-gray-100 text-gray-600' };
+    
+    const Row = ({ index, style }) => {
+        const u = filteredUsers[index];
+        return (
+            <div style={style} className="flex items-center border-b border-gray-200 text-sm">
+                <div className="px-4 py-2 whitespace-nowrap text-gray-800 font-medium flex-1">{u.displayName || 'N/A'}</div>
+                <div className="px-4 py-2 whitespace-nowrap text-gray-500 truncate flex-1" title={u.email || u.phoneNumber}>{u.email || u.phoneNumber || 'N/A'}</div>
+                <div className="px-4 py-2 flex-1"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${roleColors[u.role || 'unknown']}`}>{u.role?.replace('_', ' ') || 'Unknown'}</span></div>
+                <div className="px-4 py-2 whitespace-nowrap text-gray-500 font-mono text-xs flex-1">{u.accountNumber || 'N/A'}</div>
+                <div className="px-4 py-2 flex-1"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusColors[u.accountStatus || 'Unknown']}`}>{u.accountStatus || 'Unknown'}</span></div>
+                <div className="px-4 py-2 whitespace-nowrap text-gray-500 flex-1">{u.createdAt ? formatDate(u.createdAt, { year: 'numeric', month: 'short', day: 'numeric'}) : 'N/A'}</div>
+                <div className="px-4 py-2 whitespace-nowrap text-sm text-center space-x-1.5 flex-1">
+                    <button onClick={() => handleOpenEditModal(u)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-100 rounded-md" title="Edit User"><Edit3 size={16}/></button>
+                     {u.accountStatus !== 'Suspended' && <button onClick={() => openStatusChangeModal(u, 'Suspended')} className="text-orange-500 hover:text-orange-700 p-1 hover:bg-orange-100 rounded-md" title="Suspend User"><UserX size={16} /></button>}
+                    {(u.accountStatus === 'Suspended' || u.accountStatus === 'Inactive') && <button onClick={() => openStatusChangeModal(u, 'Active')} className="text-green-500 hover:text-green-700 p-1 hover:bg-green-100 rounded-md" title="Activate User"><UserCheck size={16} /></button>}
+                    {adminUserData?.uid !== u.id && (
+                        <button onClick={() => openDeleteModal(u)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-100 rounded-md" title="Delete User"><Trash2 size={16}/></button>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
 
     if (isLoading) {
         return <LoadingSpinner message="Loading user accounts..." className="mt-10 h-64" />;
     }
-    
+
     return (
         <div className="p-4 sm:p-6 bg-white rounded-xl shadow-xl animate-fadeIn">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-4 border-b border-gray-200">
@@ -150,36 +170,30 @@ const UserManagementSection = ({ db, showNotification, determineServiceTypeAndRo
                     <div className="relative"><ShieldCheck className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" /><select id="userMgmtFilterStatus" className={`${commonInputClass} pl-9`} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}><option value="">All Statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Suspended">Suspended</option><option value="Profile Missing">Profile Missing</option></select></div>
                 </div>
             </div>
-            
+
             {!isLoading && filteredUsers.length === 0 && (
                  <div className="text-center py-10"><Info size={48} className="mx-auto text-gray-400 mb-3" /><p className="text-gray-500 text-lg">{users.length === 0 && !fetchError ? "No users found." : "No users match your filters."}</p></div>
             )}
 
             {!isLoading && filteredUsers.length > 0 && (
                 <div className="overflow-x-auto shadow-md rounded-lg border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-100"><tr><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email / Contact</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account No.</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th><th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th></tr></thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredUsers.map(u => (
-                                <tr key={u.id} className="hover:bg-gray-50/70">
-                                    <td className="px-4 py-3 whitespace-nowrap text-gray-800 font-medium">{u.displayName || 'N/A'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-gray-500 truncate max-w-xs" title={u.email || u.phoneNumber}>{u.email || u.phoneNumber || 'N/A'}</td>
-                                    <td className="px-4 py-3"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${roleColors[u.role || 'unknown']}`}>{u.role?.replace('_', ' ') || 'Unknown'}</span></td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{u.accountNumber || 'N/A'}</td>
-                                    <td className="px-4 py-3"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusColors[u.accountStatus || 'Unknown']}`}>{u.accountStatus || 'Unknown'}</span></td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">{u.createdAt ? formatDate(u.createdAt, { year: 'numeric', month: 'short', day: 'numeric'}) : 'N/A'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-1.5">
-                                        <button onClick={() => handleOpenEditModal(u)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-100 rounded-md" title="Edit User"><Edit3 size={16}/></button>
-                                         {u.accountStatus !== 'Suspended' && <button onClick={() => openStatusChangeModal(u, 'Suspended')} className="text-orange-500 hover:text-orange-700 p-1 hover:bg-orange-100 rounded-md" title="Suspend User"><UserX size={16} /></button>}
-                                        {(u.accountStatus === 'Suspended' || u.accountStatus === 'Inactive') && <button onClick={() => openStatusChangeModal(u, 'Active')} className="text-green-500 hover:text-green-700 p-1 hover:bg-green-100 rounded-md" title="Activate User"><UserCheck size={16} /></button>}
-                                        {adminUserData?.uid !== u.id && (
-                                            <button onClick={() => openDeleteModal(u)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-100 rounded-md" title="Delete User"><Trash2 size={16}/></button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <div className="flex bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="px-4 py-3 flex-1">Name</div>
+                        <div className="px-4 py-3 flex-1">Email / Contact</div>
+                        <div className="px-4 py-3 flex-1">Role</div>
+                        <div className="px-4 py-3 flex-1">Account No.</div>
+                        <div className="px-4 py-3 flex-1">Status</div>
+                        <div className="px-4 py-3 flex-1">Joined</div>
+                        <div className="px-4 py-3 text-center flex-1">Actions</div>
+                    </div>
+                    <List
+                        height={400}
+                        itemCount={filteredUsers.length}
+                        itemSize={60}
+                        width="100%"
+                    >
+                        {Row}
+                    </List>
                 </div>
             )}
 
