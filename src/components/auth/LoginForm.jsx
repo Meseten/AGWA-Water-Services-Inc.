@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, KeyRound, Eye, EyeOff, Loader2, Link as LinkIcon } from 'lucide-react';
-import { commonInputClass, commonButtonClass, googleButtonClass, linkButtonClass } from '../../styles/authFormStyles.js';
+import { commonInputClass, getCommonButtonClasses, getGoogleButtonClasses, getLinkButtonClasses } from '../../styles/authFormStyles.js';
 
 const LoginForm = ({
     navigateTo,
@@ -68,7 +68,7 @@ const LoginForm = ({
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
             </div>
-            <button type="submit" className={commonButtonClass} disabled={authActionLoading}>
+            <button type="submit" className={getCommonButtonClasses(authActionLoading)} disabled={authActionLoading}>
                 {authActionLoading && <Loader2 className="animate-spin inline mr-2" size={18} />}
                 {authActionLoading ? 'Logging In...' : 'Login'}
             </button>
@@ -79,13 +79,13 @@ const LoginForm = ({
                 </div>
             )}
             {isGoogleLoginEnabled && (
-                <button type="button" onClick={onGoogleLoginClick} className={googleButtonClass} disabled={authActionLoading}>
+                <button type="button" onClick={onGoogleLoginClick} className={getGoogleButtonClasses(authActionLoading)} disabled={authActionLoading}>
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" onError={(e) => e.target.style.display='none'} />
                     <span>Sign in with Google</span>
                 </button>
             )}
             {isPasswordlessLoginEnabled && (
-                <button type="button" onClick={() => navigateTo('passwordlessLogin')} className={linkButtonClass} disabled={authActionLoading}>
+                <button type="button" onClick={() => navigateTo('passwordlessLogin')} className={getLinkButtonClasses(authActionLoading)} disabled={authActionLoading}>
                     <LinkIcon size={18} className="mr-2"/>
                     <span>Sign in with Email Link</span>
                 </button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, KeyRound, Eye, EyeOff, UserCircle, Hash, Loader2 } from 'lucide-react';
-import { commonInputClass, commonButtonClass, googleButtonClass } from '../../styles/authFormStyles.js';
+import { commonInputClass, getCommonButtonClasses, getGoogleButtonClasses } from '../../styles/authFormStyles.js';
 
 const SignupForm = ({
     navigateTo,
@@ -63,7 +63,7 @@ const SignupForm = ({
                     {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
             </div>
-            <button type="submit" className={commonButtonClass} disabled={authActionLoading}>
+            <button type="submit" className={getCommonButtonClasses(authActionLoading)} disabled={authActionLoading}>
                 {authActionLoading && <Loader2 className="animate-spin inline mr-2" size={18} />}
                 {authActionLoading ? 'Creating Account...' : 'Create My Account'}
             </button>
@@ -73,7 +73,7 @@ const SignupForm = ({
                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
                         <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or sign up with</span></div>
                     </div>
-                    <button type="button" onClick={onGoogleSignupClick} className={googleButtonClass} disabled={authActionLoading}>
+                    <button type="button" onClick={onGoogleSignupClick} className={getGoogleButtonClasses(authActionLoading)} disabled={authActionLoading}>
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" onError={(e) => e.target.style.display='none'}/>
                         <span>Sign up with Google</span>
                     </button>

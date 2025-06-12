@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Link as LinkIcon, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
-import { commonInputClass, linkButtonClass } from '../../styles/authFormStyles.js';
+import { commonInputClass, getLinkButtonClasses } from '../../styles/authFormStyles.js';
 
 const PasswordlessLoginForm = ({ handlePasswordlessSignInExternal, navigateTo, authActionLoading }) => {
     const [email, setEmail] = useState('');
@@ -58,7 +58,7 @@ const PasswordlessLoginForm = ({ handlePasswordlessSignInExternal, navigateTo, a
             </div>
             <button
                 type="submit"
-                className={linkButtonClass}
+                className={getLinkButtonClasses(authActionLoading || !email.trim())}
                 disabled={authActionLoading || !email.trim()}
             >
                 {authActionLoading ? <Loader2 className="animate-spin mr-2" size={20} /> : <LinkIcon size={20} className="mr-2" />}
