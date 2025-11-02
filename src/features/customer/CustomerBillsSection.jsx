@@ -2,49 +2,62 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FileText, Sparkles, Loader2, Info, Eye } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import Modal from '../../components/ui/Modal.jsx';
-import PaymentModal from './PaymentModal.jsx';
+import CheckoutModal from './CheckoutModal.jsx';
 import InvoiceView from '../../components/ui/InvoiceView.jsx';
 import * as DataService from '../../services/dataService.js';
-import { callGeminiAPI } from '../../services/geminiService.js';
+import { explainBillWithAI } from '../../services/deepseekService.js';
 import { formatDate } from '../../utils/userUtils.js';
+import DOMPurify from 'dompurify';
+import { Timestamp } from 'firebase/firestore';
+import { getStripe } from '../../services/stripeService.js';
 
 const CustomerBillsSection = ({ user, userData, db, showNotification, billingService, systemSettings = {} }) => {
     const [bills, setBills] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    
+
     const [billToPay, setBillToPay] = useState(null);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
 
     const [billToExplain, setBillToExplain] = useState(null);
     const [explanation, setExplanation] = useState('');
     const [isExplaining, setIsExplaining] = useState(false);
-    
+
     const [billToView, setBillToView] = useState(null);
     const [isInvoiceViewOpen, setIsInvoiceViewOpen] = useState(false);
 
     const { isOnlinePaymentsEnabled = true } = systemSettings;
+    const stripePromise = getStripe();
 
     const settingsJson = JSON.stringify(systemSettings);
+    const userDataJson = JSON.stringify(userData);
 
-    useEffect(() => {
-        const fetchBills = async () => {
+     const fetchBills = useCallback(async () => {
             setIsLoading(true);
             setError('');
+            const currentUserData = JSON.parse(userDataJson);
+
+            if (!user?.uid || !currentUserData?.serviceType) {
+                setError("Missing user data for fetching bills.");
+                setIsLoading(false);
+                return;
+            }
+
             const result = await DataService.getBillsForUser(db, user.uid);
             if (result.success) {
+                const currentSettings = JSON.parse(settingsJson);
                 const sortedBills = result.data.sort((a, b) => {
                     const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(0);
                     const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(0);
                     return dateB - dateA;
                 });
-                
-                const billsWithDetails = sortedBills.map(bill => {
-                    const charges = billingService(bill.consumption, userData.serviceType, userData.meterSize, systemSettings);
-                    const totalAmount = charges.totalCalculatedCharges + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
-                    return { ...bill, amount: totalAmount, calculatedCharges: charges };
-                });
+
+                 const billsWithDetails = sortedBills.map(bill => {
+                     const calculatedCharges = billingService(bill.consumption ?? 0, currentUserData.serviceType, currentUserData.meterSize, currentSettings);
+                     const totalAmount = (calculatedCharges.totalCalculatedCharges || 0) + (bill.previousUnpaidAmount || 0) - (bill.seniorCitizenDiscount || 0);
+                     return { ...bill, amount: totalAmount, calculatedCharges: calculatedCharges };
+                 }).filter(bill => bill.amount !== undefined);
+
 
                 setBills(billsWithDetails);
             } else {
@@ -52,76 +65,55 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                 showNotification(result.error || "Failed to fetch bills.", "error");
             }
             setIsLoading(false);
-        };
+        }, [db, user?.uid, showNotification, billingService, userDataJson, settingsJson]);
 
-        if (user?.uid && userData?.serviceType) {
+
+    useEffect(() => {
+        fetchBills();
+    }, [fetchBills]);
+    
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('payment') === 'success') {
+            showNotification('Payment successful! Your bill is being updated.', 'success');
             fetchBills();
         }
-    }, [db, user.uid, showNotification, billingService, userData.serviceType, userData.meterSize, settingsJson]);
+        if (query.get('payment') === 'cancel') {
+            showNotification('Payment was cancelled. Your bill remains unpaid.', 'warning');
+        }
+    }, [fetchBills, showNotification]);
 
     const handlePayBillClick = (bill) => {
         setBillToPay(bill);
-        setIsPaymentModalOpen(true);
+        setIsCheckoutModalOpen(true);
     };
 
-    const handleConfirmPayment = async ({ billId, paymentMethod, amountPaid, paymentReference }) => {
-        setIsProcessingPayment(true);
-        const result = await DataService.updateBill(db, billId, {
-            status: 'Paid',
-            paymentDate: new Date(),
-            amountPaid: amountPaid,
-            paymentMethod: paymentMethod,
-            paymentReference: paymentReference,
-        });
-        setIsProcessingPayment(false);
-        if (result.success) {
-            showNotification("Payment successful! Your bill status has been updated.", "success");
-            setIsPaymentModalOpen(false);
-            setBillToPay(null);
-            setBills(prevBills => prevBills.map(b => b.id === billId ? { ...b, status: 'Paid' } : b));
-        } else {
-            showNotification(result.error || "Payment processing failed.", "error");
+     const handleExplainBill = async (bill) => {
+        if (!bill || !bill.calculatedCharges) {
+             showNotification("Bill details unavailable for explanation.", "warning");
+             return;
         }
-    };
-
-    const handleExplainBill = async (bill) => {
         setBillToExplain(bill);
         setExplanation('');
         setIsExplaining(true);
         try {
-            const charges = bill.calculatedCharges;
-            const prompt = `
-                Explain this water bill to a customer named ${userData.displayName}. 
-                Be friendly, clear, and encouraging. Use markdown for formatting like **bolding**.
-                
-                Bill Details:
-                - Bill Period: ${bill.monthYear}
-                - Total Amount Due: **₱${bill.amount.toFixed(2)}**
-                - Due Date: ${formatDate(bill.dueDate)}
-                - Water Consumption: **${bill.consumption} cubic meters**
-
-                Explain the breakdown clearly:
-                1.  **Basic Charge (₱${charges.basicCharge.toFixed(2)})**: This is the main cost for the ${bill.consumption} cubic meters of water you used, based on your '${userData.serviceType}' tariff rate.
-                2.  **Other Charges**: Briefly explain what these are for.
-                    - FCDA (₱${charges.fcda.toFixed(2)}): A small adjustment for foreign currency costs.
-                    - Environmental Charge (₱${charges.environmentalCharge.toFixed(2)}): This funds wastewater treatment and protects our environment.
-                    - Maintenance Service Charge (₱${charges.maintenanceServiceCharge.toFixed(2)}): A fixed fee for meter upkeep.
-                3.  **Taxes (₱${charges.vat.toFixed(2)})**: This is the 12% Value Added Tax required by the government.
-                4.  **Previous Unpaid Balance**: Mention if there is a previous balance of ₱${(bill.previousUnpaidAmount || 0).toFixed(2)}.
-
-                Conclude by summarizing how all these add up to the Total Amount Due and gently remind them of the due date.
-            `;
-            
-            const aiExplanation = await callGeminiAPI(prompt);
+            const aiExplanation = await explainBillWithAI({
+                billDetails: bill,
+                charges: bill.calculatedCharges,
+                customerName: userData.displayName || 'Valued Customer',
+                serviceType: userData.serviceType || 'Residential'
+            });
             setExplanation(aiExplanation);
-        } catch {
-            setExplanation("Sorry, I couldn't generate an explanation right now. The detailed breakdown is available on the full invoice.");
-            showNotification("AI explanation failed.", "error");
+        } catch (error) {
+            const errorMessage = error?.message || "AI explanation failed.";
+            setExplanation("<p>Sorry, an error occurred while generating the explanation. Please view the detailed invoice instead.</p>");
+            showNotification(errorMessage, "error");
         } finally {
             setIsExplaining(false);
         }
     };
-    
+
+
     const handleViewInvoice = (bill) => {
         setBillToView(bill);
         setIsInvoiceViewOpen(true);
@@ -137,7 +129,7 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                 <FileText size={30} className="mr-3 text-blue-600" /> My Bills & Payment History
             </h2>
             {error && <div className="text-red-500 bg-red-50 p-3 rounded-md text-center">{error}</div>}
-            
+
             {bills.length === 0 && !error && (
                 <div className="text-center py-10 bg-gray-50 p-6 rounded-lg shadow-inner">
                     <Info size={48} className="mx-auto text-gray-400 mb-4" />
@@ -150,20 +142,21 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                     <div key={bill.id} className={`p-4 rounded-lg shadow-md border-l-4 ${bill.status === 'Paid' ? 'bg-green-50 border-green-400' : 'bg-yellow-50 border-yellow-400'}`}>
                         <div className="flex flex-wrap justify-between items-center gap-2">
                             <div>
-                                <h3 className="text-lg font-semibold text-gray-800">{bill.monthYear}</h3>
+                                <h3 className="text-lg font-semibold text-gray-800">{bill.monthYear || bill.billingPeriod || 'N/A'}</h3>
                                 <p className="text-sm text-gray-600">Due: {formatDate(bill.dueDate, {month: 'long', day: 'numeric'})}</p>
+                                 <p className="text-xs text-gray-500 mt-1">Bill ID: {bill.id.substring(0, 8)}...</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-2xl font-bold text-gray-700">₱{bill.amount.toFixed(2)}</p>
+                                <p className="text-2xl font-bold text-gray-700">₱{bill.amount?.toFixed(2) ?? '0.00'}</p>
                                 <p className={`text-sm font-semibold ${bill.status === 'Paid' ? 'text-green-600' : 'text-red-600'}`}>
-                                    {bill.status}
+                                    {bill.status || 'Unknown'}
                                 </p>
                             </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-200/80 flex flex-wrap gap-2 justify-end">
                             <button onClick={() => handleViewInvoice(bill)} className="text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-md transition flex items-center"><Eye size={14} className="mr-1"/>View Invoice</button>
                             <button onClick={() => handleExplainBill(bill)} className="text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1.5 rounded-md transition flex items-center" disabled={isExplaining && billToExplain?.id === bill.id}>
-                                {isExplaining && billToExplain?.id === bill.id ? <Loader2 size={14} className="animate-spin mr-1"/> : <Sparkles size={14} className="mr-1"/>} Explain Bill
+                                {isExplaining && billToExplain?.id === bill.id ? <Loader2 size={14} className="animate-spin mr-1"/> : <Sparkles size={14} className="mr-1"/>} Explain Bill (AI)
                             </button>
                             {bill.status === 'Unpaid' && isOnlinePaymentsEnabled && (
                                 <button onClick={() => handlePayBillClick(bill)} className="text-xs font-bold bg-green-500 text-white hover:bg-green-600 px-4 py-1.5 rounded-md transition flex items-center">
@@ -174,20 +167,31 @@ const CustomerBillsSection = ({ user, userData, db, showNotification, billingSer
                     </div>
                 ))}
             </div>
-            
-            <Modal isOpen={!!billToExplain} onClose={() => setBillToExplain(null)} title={`Explanation for ${billToExplain?.monthYear} Bill`} size="lg">
-                {isExplaining ? <LoadingSpinner message="Agie is analyzing your bill..."/> : <div className="prose prose-sm max-w-none whitespace-pre-line leading-relaxed p-2" dangerouslySetInnerHTML={{ __html: billToExplain ? explanation.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') : explanation }} />}
+
+            <Modal isOpen={!!billToExplain} onClose={() => setBillToExplain(null)} title={`✨ AI Explanation for ${billToExplain?.monthYear || 'Bill'}`} size="lg">
+                {isExplaining
+                    ? <LoadingSpinner message="Agie is analyzing your bill..."/>
+                    : <div className="prose prose-sm max-w-none leading-relaxed p-2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(explanation || '') }} />
+                }
             </Modal>
 
-            {isPaymentModalOpen && (
-                <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} billToPay={billToPay} onConfirmPayment={handleConfirmPayment} isProcessingPayment={isProcessingPayment} userData={userData}/>
+            {isCheckoutModalOpen && billToPay && (
+                <CheckoutModal 
+                    isOpen={isCheckoutModalOpen} 
+                    onClose={() => setIsCheckoutModalOpen(false)} 
+                    billToPay={billToPay} 
+                    userData={userData} 
+                    showNotification={showNotification}
+                    stripePromise={stripePromise}
+                />
             )}
-            
-            {isInvoiceViewOpen && (
-                <InvoiceView isOpen={isInvoiceViewOpen} onClose={() => setIsInvoiceViewOpen(false)} bill={billToView} userData={userData} calculateBillDetails={billingService} />
+
+            {isInvoiceViewOpen && billToView && (
+                <InvoiceView isOpen={isInvoiceViewOpen} onClose={() => setIsInvoiceViewOpen(false)} bill={billToView} userData={userData} calculateBillDetails={billingService} showNotification={showNotification} />
             )}
         </div>
     );
 };
+
 
 export default CustomerBillsSection;

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, Clock, AlertTriangle, CheckCircle, Info, RotateCcw, Loader2, Eye, Send, Sparkles } from 'lucide-react';
+import { MessageSquare, Clock, AlertTriangle, CheckCircle, Info, RotateCcw, Loader2, Eye, Send, Sparkles, Hash } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import * as DataService from '../../services/dataService.js';
 import { formatDate } from '../../utils/userUtils.js';
 import { Timestamp } from 'firebase/firestore';
-import { callGeminiAPI } from '../../services/geminiService.js';
+import { refineSupportTicketReply } from '../../services/deepseekService.js';
 import Tooltip from '../../components/ui/Tooltip.jsx';
+import DOMPurify from 'dompurify';
+import RichTextEditor from '../../components/ui/RichTextEditor.jsx';
+
 
 const MyTicketsSection = ({ db, user, userData, showNotification }) => {
     const [tickets, setTickets] = useState([]);
@@ -22,8 +25,8 @@ const MyTicketsSection = ({ db, user, userData, showNotification }) => {
         if (result.success) {
             setTickets(result.data);
         } else {
-            setError(result.error || "Failed to fetch your support tickets.");
-            showNotification(result.error || "Failed to fetch tickets.", "error");
+            setError(result.error || "Failed fetching tickets.");
+            showNotification(result.error || "Failed fetching tickets.", "error");
         }
         setIsLoading(false);
     }, [db, user.uid, showNotification]);
@@ -32,30 +35,32 @@ const MyTicketsSection = ({ db, user, userData, showNotification }) => {
         fetchTickets();
     }, [fetchTickets]);
 
-    const handleReplyChange = (ticketId, text) => {
-        setReplyText(prev => ({ ...prev, [ticketId]: text }));
+    const handleReplyChange = (ticketId, value) => {
+        setReplyText(prev => ({ ...prev, [ticketId]: value }));
     };
 
     const handleSendReply = async (ticketId) => {
-        const text = replyText[ticketId];
-        if (!text || !text.trim()) {
+        const currentReplyHtml = replyText[ticketId] || '';
+        const plainText = currentReplyHtml.replace(/<[^>]*>?/gm, '').trim();
+        if (!plainText) {
             showNotification("Reply cannot be empty.", "warning");
             return;
         }
         setIsSendingReply(ticketId);
+        const sanitizedHtml = DOMPurify.sanitize(currentReplyHtml);
         const replyData = {
-            text: text,
+            text: sanitizedHtml,
             authorId: user.uid,
-            authorName: userData.displayName,
-            authorRole: userData.role,
-            timestamp: Timestamp.fromDate(new Date()),
+            authorName: userData.displayName || 'Customer',
+            authorRole: userData.role || 'customer',
+            timestamp: Timestamp.now(),
         };
 
         const result = await DataService.addTicketReply(db, ticketId, replyData);
         if (result.success) {
-            showNotification("Reply sent successfully!", "success");
+            showNotification("Reply sent!", "success");
             setReplyText(prev => ({ ...prev, [ticketId]: '' }));
-            fetchTickets(); 
+            fetchTickets();
         } else {
             showNotification(result.error || "Failed to send reply.", "error");
         }
@@ -63,31 +68,42 @@ const MyTicketsSection = ({ db, user, userData, showNotification }) => {
     };
 
     const handleAiAssist = async (ticketId) => {
-        const currentReply = replyText[ticketId] || '';
-        if (!currentReply.trim()) {
-            showNotification("Please write a draft or some keywords for the AI to assist with.", "warning");
+        const currentReplyHtml = replyText[ticketId] || '';
+        const plainTextForAI = currentReplyHtml.replace(/<[^>]*>?/gm, '').trim();
+        if (!plainTextForAI) {
+            showNotification("Write a draft or keywords first.", "warning");
             return;
         }
         setIsAiAssisting(ticketId);
+        const ticket = tickets.find(t => t.id === ticketId);
+        if (!ticket) {
+             setIsAiAssisting(null);
+             return;
+        }
         try {
-            const prompt = `You are helping a customer write a formal reply to a support ticket. Refine the following draft to be clear, polite, and concise. Do not add any extra commentary. Just provide the refined message.\n\nMy draft: "${currentReply}"`;
-            const assistedReply = await callGeminiAPI(prompt);
+             const conversationHistory = (ticket.conversation || []).map(msg => `${msg.authorRole === 'admin' ? 'Support' : 'You'}: ${msg.text.replace(/<[^>]*>?/gm, '')}`).join('\n\n');
+             const assistedReply = await refineSupportTicketReply({
+                 ticketDescription: ticket.description,
+                 conversationHistory: conversationHistory,
+                 draftReply: plainTextForAI,
+                 customerName: userData.displayName
+             });
             handleReplyChange(ticketId, assistedReply);
-            showNotification("AI has refined your reply!", "success");
+            showNotification("AI refined your reply.", "success");
         } catch (error) {
-            showNotification(error.message || "AI assistance failed.", "error");
+            const errorMessage = error?.message || "AI assistance failed.";
+            showNotification(errorMessage, "error");
         } finally {
             setIsAiAssisting(null);
         }
     };
-    
+
     const getStatusPillClass = (status) => {
         switch (status) {
             case 'Open': return 'bg-red-100 text-red-700';
             case 'In Progress': return 'bg-yellow-100 text-yellow-700';
-            case 'Resolved':
-            case 'Closed':
-                 return 'bg-green-100 text-green-700';
+            case 'Awaiting Customer': return 'bg-blue-100 text-blue-700';
+            case 'Resolved': case 'Closed': return 'bg-green-100 text-green-700';
             default: return 'bg-gray-100 text-gray-600';
         }
     };
@@ -102,81 +118,91 @@ const MyTicketsSection = ({ db, user, userData, showNotification }) => {
                 <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 flex items-center">
                     <MessageSquare size={30} className="mr-3 text-purple-600" /> My Support Tickets
                 </h2>
-                 <button onClick={fetchTickets} disabled={isLoading} className="flex items-center text-sm p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                 <button onClick={fetchTickets} disabled={isLoading} className="flex items-center text-sm p-2 bg-gray-100 rounded-lg hover:bg-gray-200 border border-gray-300">
                     <RotateCcw size={16} className={isLoading ? "animate-spin" : ""} />
+                     <span className="ml-1.5 hidden sm:inline">Refresh</span>
                 </button>
             </div>
 
-            {error && <div className="text-red-500 bg-red-50 p-3 rounded-md text-center">{error}</div>}
-            
+            {error && <div className="text-red-500 bg-red-50 p-3 rounded-md text-center border border-red-200">{error}</div>}
+
             {tickets.length === 0 && !error && (
-                <div className="text-center py-10 bg-gray-50 p-6 rounded-lg shadow-inner">
+                <div className="text-center py-10 bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
                     <Info size={48} className="mx-auto text-gray-400 mb-4" />
-                    <p className="text-gray-600 text-lg">You have not submitted any support tickets.</p>
-                    <p className="text-sm text-gray-500 mt-1">You can report an issue from your dashboard.</p>
+                    <p className="text-gray-600 text-lg">No support tickets found.</p>
+                    <p className="text-sm text-gray-500 mt-1">Use 'Report an Issue' to create one.</p>
                 </div>
             )}
 
             <div className="space-y-4">
                 {tickets.map(ticket => (
-                    <details key={ticket.id} className="p-4 rounded-lg shadow-md border-l-4 bg-gray-50 border-purple-400 group">
-                        <summary className="flex flex-wrap justify-between items-center gap-2 cursor-pointer">
+                    <details key={ticket.id} className="p-4 rounded-lg shadow-md border-l-4 bg-gray-50 border-purple-400 group hover:shadow-lg transition-shadow">
+                        <summary className="flex flex-wrap justify-between items-center gap-2 cursor-pointer list-none">
                             <div>
-                                <h3 className="text-md font-semibold text-gray-800">{ticket.issueType}</h3>
-                                <p className="text-xs text-gray-500">Submitted: {formatDate(ticket.submittedAt, { month: 'long', day: 'numeric' })}</p>
+                                <h3 className="text-md font-semibold text-gray-800">{ticket.issueType || 'Support Ticket'}</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Submitted: {formatDate(ticket.submittedAt, { month: 'short', day: 'numeric', year:'2-digit' })}</p>
+                                <Tooltip text={`Ticket ID: ${ticket.id}`} position="bottom">
+                                     <p className="text-xs text-gray-400 font-mono mt-0.5 flex items-center"><Hash size={12} className="mr-1"/>{ticket.id.substring(0, 8)}...</p>
+                                </Tooltip>
                             </div>
-                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusPillClass(ticket.status)}`}>
-                                {ticket.status}
+                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusPillClass(ticket.status)} shrink-0`}>
+                                {ticket.status || 'Unknown'}
                             </span>
+                            <span className="ml-auto transition-transform duration-300 transform group-open:rotate-180 text-purple-600">▼</span>
                         </summary>
-                        <div className="mt-4 pt-3 border-t border-gray-200 text-sm text-gray-700 space-y-3">
-                           <div>
-                                <strong className="text-xs text-gray-500">Your Initial Report:</strong>
-                                <p className="p-2 bg-white border rounded-md whitespace-pre-line text-xs">{ticket.description}</p>
-                           </div>
-                           {(ticket.conversation && ticket.conversation.length > 0) && (
-                               <div className="space-y-2">
-                                   <strong className="text-xs text-gray-500">Conversation History:</strong>
-                                   <div className="max-h-60 overflow-y-auto space-y-2 border bg-white p-2 rounded-md">
-                                        {ticket.conversation.map((msg, index) => (
-                                            <div key={index} className={`p-2 rounded-lg text-xs ${msg.authorRole === 'admin' ? 'bg-blue-50' : 'bg-green-50'}`}>
-                                                <p className="font-bold text-gray-800">{msg.authorName}:</p>
-                                                <p className="text-sm text-gray-700 whitespace-pre-line">{msg.text}</p>
-                                                <p className="text-right text-gray-500 mt-1">{formatDate(msg.timestamp)}</p>
-                                            </div>
-                                        ))}
-                                   </div>
+                        <div className="mt-4 pt-3 border-t border-gray-200 text-sm text-gray-700 space-y-4 grid grid-rows-[0fr] group-open:grid-rows-[1fr] transition-all duration-500 ease-in-out">
+                          <div className="overflow-hidden space-y-4">
+                               <div>
+                                    <strong className="text-xs text-gray-500 block mb-1">Your Initial Report:</strong>
+                                    <div className="p-2 bg-white border rounded-md whitespace-pre-line text-xs prose prose-xs max-w-none">{ticket.description}</div>
                                </div>
-                           )}
-                           <div className="pt-2">
-                                <label className="text-xs font-semibold text-gray-600">Send a Reply:</label>
-                                <div className="flex items-start gap-2">
-                                    <textarea
-                                        value={replyText[ticket.id] || ''}
-                                        onChange={(e) => handleReplyChange(ticket.id, e.target.value)}
-                                        placeholder="Type your reply..."
-                                        className="w-full p-2 border rounded-md text-sm flex-grow"
-                                        rows="3"
-                                    />
-                                    <Tooltip text="Type a draft first, then use AI to refine it.">
-                                        <button 
-                                            onClick={() => handleAiAssist(ticket.id)}
-                                            className="p-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            disabled={isAiAssisting === ticket.id || !(replyText[ticket.id] || '').trim()}
-                                            title="Refine reply with AI"
+                               {(ticket.conversation && ticket.conversation.length > 0) && (
+                                   <div className="space-y-2">
+                                       <strong className="text-xs text-gray-500 block mb-1">Conversation:</strong>
+                                       <div className="max-h-60 overflow-y-auto space-y-2 border bg-white p-2 rounded-md scrollbar-thin">
+                                            {ticket.conversation.map((msg, index) => (
+                                                <div key={index} className={`p-2 rounded-lg text-xs ${msg.authorRole === 'admin' ? 'bg-blue-50' : 'bg-green-50'}`}>
+                                                    <p className="font-bold text-gray-800">{msg.authorName} ({msg.authorRole}):</p>
+                                                    <div className="text-gray-700 prose prose-xs max-w-none break-words" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.text || '') }}></div>
+                                                    <p className="text-right text-gray-500 mt-1">{formatDate(msg.timestamp)}</p>
+                                                </div>
+                                            ))}
+                                       </div>
+                                   </div>
+                               )}
+                               {ticket.status !== 'Resolved' && ticket.status !== 'Closed' && (
+                                   <div className="pt-2">
+                                        <label className="text-xs font-semibold text-gray-600 block mb-1">Send a Reply:</label>
+                                        <div className="flex items-start gap-2">
+                                            <RichTextEditor
+                                                value={replyText[ticket.id] || ''}
+                                                onChange={(value) => handleReplyChange(ticket.id, value)}
+                                                placeholder="Type your reply..."
+                                                className="flex-grow bg-white rounded-lg border border-gray-300 min-h-[100px]"
+                                                readOnly={isSendingReply === ticket.id || isAiAssisting === ticket.id}
+                                            />
+                                            <Tooltip text="Refine draft with AI">
+                                                <button
+                                                    onClick={() => handleAiAssist(ticket.id)}
+                                                    className="p-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    disabled={isAiAssisting === ticket.id || !(replyText[ticket.id] || '').replace(/<[^>]*>?/gm, '').trim()}
+                                                >
+                                                    {isAiAssisting === ticket.id ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                                                </button>
+                                            </Tooltip>
+                                        </div>
+                                       <button
+                                           onClick={() => handleSendReply(ticket.id)}
+                                           className="mt-2 w-full sm:w-auto flex items-center justify-center bg-blue-600 text-white font-semibold py-2 px-4 rounded-md text-xs hover:bg-blue-700 disabled:opacity-60"
+                                           disabled={isSendingReply === ticket.id || !(replyText[ticket.id] || '').replace(/<[^>]*>?/gm, '').trim()}
                                         >
-                                            {isAiAssisting === ticket.id ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                                            {isSendingReply === ticket.id ? <Loader2 size={14} className="animate-spin mr-2" /> : <Send size={14} className="mr-2"/>}
+                                            Send Reply
                                         </button>
-                                    </Tooltip>
-                                </div>
-                               <button 
-                                   onClick={() => handleSendReply(ticket.id)}
-                                   className="mt-2 w-full sm:w-auto flex items-center justify-center bg-blue-600 text-white font-semibold py-2 px-4 rounded-md text-xs hover:bg-blue-700 disabled:opacity-60"
-                                   disabled={isSendingReply === ticket.id || !(replyText[ticket.id] || '').trim()}
-                                >
-                                    {isSendingReply === ticket.id ? <Loader2 size={14} className="animate-spin mr-2" /> : <Send size={14} className="mr-2"/>}
-                                    Send Reply
-                                </button>
+                                   </div>
+                               )}
+                                {ticket.status === 'Resolved' && <p className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">This ticket is marked as resolved. Replying will reopen it.</p>}
+                                {ticket.status === 'Closed' && <p className="text-xs text-purple-700 bg-purple-50 p-2 rounded border border-purple-200">This ticket is closed. Please create a new ticket if you need further assistance.</p>}
                            </div>
                         </div>
                     </details>

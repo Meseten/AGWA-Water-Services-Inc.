@@ -4,7 +4,7 @@ import DashboardInfoCard from "../../components/ui/DashboardInfoCard.jsx";
 import Modal from "../../components/ui/Modal.jsx";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.jsx";
 import * as DataService from "../../services/dataService.js";
-import { callGeminiAPI } from "../../services/geminiService.js";
+import { callDeepseekAPI } from "../../services/deepseekService.js";
 import { formatDate } from "../../utils/userUtils.js";
 
 const CustomerDashboardMain = ({ user, userData, db, showNotification, setActiveSection, billingService: calculateBillDetails }) => {
@@ -40,7 +40,7 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
 
                 const unpaidBills = billsWithCalculatedAmounts.filter(b => b.status === 'Unpaid');
                 if (unpaidBills.length > 0) {
-                    const sortedUnpaidBills = unpaidBills.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+                    const sortedUnpaidBills = unpaidBills.sort((a, b) => new Date(a.dueDate?.toDate() || 0) - new Date(b.dueDate?.toDate() || 0));
                     const oldestDueBill = sortedUnpaidBills[0];
                     setCurrentBalance(oldestDueBill.amount);
                     setNextDueDate(oldestDueBill.dueDate);
@@ -70,12 +70,19 @@ const CustomerDashboardMain = ({ user, userData, db, showNotification, setActive
         setIsTipsModalOpen(true);
         setWaterSavingTips('');
         try {
-            const serviceArea = userData.serviceAddress ? `for a household in ${userData.serviceAddress.split(',').pop().trim()}` : 'for a household';
+            const serviceArea = (userData.serviceAddress && userData.serviceAddress.barangay)
+                ? `for a household in ${userData.serviceAddress.barangay}`
+                : 'for a household';
+            
             const prompt = `You are Agie, a friendly and knowledgeable water conservation expert from AGWA. Provide a mix of 8-10 engaging items for a customer. Include practical water-saving tips, surprising water trivia/facts, and at least one local-context tip for the Philippines. Format them as a fun, easy-to-read list using markdown (e.g., using emojis like 💧 or ✨, and bolding for emphasis).`;
-            const tips = await callGeminiAPI(prompt);
+            
+            const messages = [{ role: 'user', content: prompt }];
+            const tips = await callDeepseekAPI(messages);
+            
             setWaterSavingTips(tips);
         } catch (error) {
-            showNotification(error.message || "Could not fetch water saving tips at the moment.", "error");
+            const errorMessage = error?.message || "Could not fetch water saving tips at the moment.";
+            showNotification(errorMessage, "error");
             setWaterSavingTips("Sorry, couldn't fetch tips right now. Try checking online for general water conservation advice!");
         } finally {
             setIsLoadingTips(false);

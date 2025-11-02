@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Save, Loader2, AlertTriangle, Percent, Megaphone, Clock, Trash2, KeyRound, Wind, UserPlus, Phone, AtSign, Briefcase, MessageSquare } from 'lucide-react';
+import { Settings, Save, Loader2, AlertTriangle, Percent, Megaphone, Clock, Trash2, KeyRound, Wind, UserPlus, Phone, AtSign, Briefcase, MessageSquare, Users, Map, Gift, Star, Calendar, CreditCard } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
 import ConfirmationModal from '../../components/ui/ConfirmationModal.jsx';
 import * as DataService from '../../services/dataService.js';
@@ -39,6 +39,8 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         reconnectionFee: 500.00,
         fcdaPercentage: 1.29,
         environmentalChargePercentage: 25.0,
+        sewerageChargePercentageCommercial: 32.85,
+        governmentTaxPercentage: 2.0,
         vatPercentage: 12.0,
         maintenanceMode: false,
         isSignupEnabled: true,
@@ -47,8 +49,12 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         isOnlinePaymentsEnabled: true,
         isChatbotEnabled: true,
         supportHotline: "1627-AGWA",
-        supportEmail: "support@agwa-waterservices.com.ph",
+        supportEmail: "support@agos-waterservices.com.ph",
         autoCloseTicketsDays: 14,
+        isRebateProgramEnabled: false,
+        pointsPerPeso: 0.01,
+        earlyPaymentBonusPoints: 10,
+        earlyPaymentDaysThreshold: 7,
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -105,27 +111,40 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         let result;
         let dataType = confirmAction;
 
-        switch (dataType) {
-            case 'tickets':
-                result = await DataService.deleteAllTickets(db);
-                break;
-            case 'bills':
-                result = await DataService.deleteAllBills(db);
-                break;
-            case 'readings':
-                result = await DataService.deleteAllReadings(db);
-                break;
-            case 'announcements':
-                result = await DataService.deleteAllAnnouncements(db);
-                break;
-            default:
-                result = { success: false, error: 'Unknown data type.' };
-        }
+        try {
+            switch (dataType) {
+                case 'tickets':
+                    result = await DataService.deleteAllTickets(db);
+                    break;
+                case 'bills':
+                    result = await DataService.deleteAllBills(db);
+                    break;
+                case 'readings':
+                    result = await DataService.deleteAllReadings(db);
+                    break;
+                case 'announcements':
+                    result = await DataService.deleteAllAnnouncements(db);
+                    break;
+                case 'interruptions':
+                    result = await DataService.deleteAllInterruptions(db);
+                    break;
+                case 'routes':
+                    result = await DataService.deleteAllRoutes(db);
+                    break;
+                case 'users':
+                    result = await DataService.deleteAllUsers(db);
+                    break;
+                default:
+                    result = { success: false, error: 'Unknown data type.' };
+            }
 
-        if (result.success) {
-            showNotification(`Successfully deleted ${result.count} ${dataType}.`, "success");
-        } else {
-            showNotification(result.error || `Failed to delete ${dataType}.`, "error");
+            if (result.success) {
+                showNotification(`Successfully deleted ${result.count} ${dataType}.`, "success");
+            } else {
+                showNotification(result.error || `Failed to delete ${dataType}.`, "error");
+            }
+        } catch (err) {
+             showNotification(err.message || `An error occurred deleting ${dataType}.`, "error");
         }
         
         setIsDeleting(false);
@@ -144,6 +163,8 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         { name: 'reconnectionFee', label: 'Reconnection Fee (PHP)', type: 'number', icon: KeyRound },
         { name: 'fcdaPercentage', label: 'FCDA (%)', type: 'number', icon: Percent },
         { name: 'environmentalChargePercentage', label: 'Environmental Charge (%)', type: 'number', icon: Wind },
+        { name: 'sewerageChargePercentageCommercial', label: 'Sewerage Charge (Comm. %)', type: 'number', icon: Percent },
+        { name: 'governmentTaxPercentage', label: 'Government Taxes (%)', type: 'number', icon: Percent },
         { name: 'vatPercentage', label: 'VAT (%)', type: 'number', icon: Percent },
     ];
     
@@ -155,18 +176,29 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
         { name: 'isChatbotEnabled', label: 'Enable Chatbot', type: 'checkbox', icon: MessageSquare },
     ];
 
+    const rebateSettings = [
+        { name: 'isRebateProgramEnabled', label: 'Enable Rebate Program', type: 'checkbox', icon: Gift, description: "Enable the customer rewards program." },
+        { name: 'pointsPerPeso', label: 'Points Awarded per ₱1.00 Paid', type: 'number', icon: Star, placeholder: 'e.g., 0.01 for 1pt per ₱100' },
+        { name: 'earlyPaymentBonusPoints', label: 'Early Payment Bonus (Points)', type: 'number', icon: Star, placeholder: 'e.g., 10' },
+        { name: 'earlyPaymentDaysThreshold', label: 'Early Payment Threshold (Days)', type: 'number', icon: Calendar, placeholder: 'e.g., 7 days before due date' },
+    ];
+
     const communicationSettings = [
-        { name: 'supportHotline', label: 'Support Hotline Number', type: 'text', icon: Phone, placeholder: 'e.g., 1627-AGWA' },
-        { name: 'supportEmail', label: 'Support Email Address', type: 'email', icon: AtSign, placeholder: 'e.g., support@agwa.com' },
+        { name: 'supportHotline', label: 'Support Hotline Number', type: 'text', icon: Phone, placeholder: 'e.g., 1627-AGOS' },
+        { name: 'supportEmail', label: 'Support Email Address', type: 'email', icon: AtSign, placeholder: 'e.g., support@agos.com' },
         { name: 'autoCloseTicketsDays', label: 'Auto-close Resolved Tickets After (Days)', type: 'number', icon: Clock },
     ];
 
-    const dangerZoneActions = [
-        { label: 'Clear All Support Tickets', action: 'tickets' },
-        { label: 'Clear All Bills', action: 'bills' },
-        { label: 'Clear All Meter Readings', action: 'readings' },
-        { label: 'Clear All Announcements', action: 'announcements' },
+    const transactionalDangerActions = [
+        { label: 'Clear All Support Tickets', action: 'tickets', icon: MessageSquare },
+        { label: 'Clear All Bills', action: 'bills', icon: Briefcase },
+        { label: 'Clear All Meter Readings', action: 'readings', icon: Wind },
+        { label: 'Clear All Announcements', action: 'announcements', icon: Megaphone },
+        { label: 'Clear All Interruptions', action: 'interruptions', icon: AlertTriangle },
+        { label: 'Clear All Meter Routes', action: 'routes', icon: Map },
     ];
+
+    const userDangerAction = { label: 'Clear All User Profiles', action: 'users', icon: Users };
 
     if (isLoading) {
         return <LoadingSpinner message="Loading system settings..." className="mt-10 h-64" />;
@@ -193,14 +225,14 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
             <div className="space-y-8">
                 <section>
                     <h3 className="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">General & Maintenance</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {generalSettings.map(field => <SettingRow key={field.name} field={field} settings={settings} handleChange={handleChange} />)}
                     </div>
                 </section>
 
                 <section>
                     <h3 className="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Billing & Financial</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {billingSettings.map(field => <SettingRow key={field.name} field={field} settings={settings} handleChange={handleChange} />)}
                     </div>
                 </section>
@@ -209,6 +241,13 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
                     <h3 className="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Portal Features & Authentication</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {featureSettings.map(field => <SettingRow key={field.name} field={field} settings={settings} handleChange={handleChange} />)}
+                    </div>
+                </section>
+                
+                <section>
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Rewards Program</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {rebateSettings.map(field => <SettingRow key={field.name} field={field} settings={settings} handleChange={handleChange} />)}
                     </div>
                 </section>
 
@@ -225,13 +264,22 @@ const SystemSettingsSection = ({ showNotification = console.log }) => {
                     <AlertTriangle size={24} className="mr-2"/> Danger Zone
                 </h3>
                 <p className="text-sm text-gray-600 mt-1 mb-4">These actions are destructive and cannot be undone. This will permanently delete transactional data from the database, effectively resetting parts of your system.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {dangerZoneActions.map(action => (
-                        <button type="button" key={action.action} onClick={() => setConfirmAction(action.action)} className="p-4 border border-red-200 rounded-lg bg-red-50 hover:bg-red-100 hover:border-red-400 transition-colors text-left">
-                            <p className="font-semibold text-red-800 flex items-center"><Trash2 size={16} className="mr-2"/>{action.label}</p>
-                            <p className="text-xs text-red-600 mt-1">Permanently delete all {action.action} from the database.</p>
-                        </button>
-                    ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {transactionalDangerActions.map(action => {
+                        const Icon = action.icon;
+                        return (
+                            <button type="button" key={action.action} onClick={() => setConfirmAction(action.action)} className="p-4 border border-red-200 rounded-lg bg-red-50 hover:bg-red-100 hover:border-red-400 transition-colors text-left">
+                                <p className="font-semibold text-red-800 flex items-center"><Icon size={16} className="mr-2"/>{action.label}</p>
+                                <p className="text-xs text-red-600 mt-1">Permanently delete all {action.action} from the database.</p>
+                            </button>
+                        )
+                    })}
+                </div>
+                <div className="mt-4">
+                    <button type="button" key={userDangerAction.action} onClick={() => setConfirmAction(userDangerAction.action)} className="p-4 border border-red-300 w-full rounded-lg bg-red-100 hover:bg-red-200 hover:border-red-500 transition-colors text-left">
+                        <p className="font-semibold text-red-900 flex items-center"><userDangerAction.icon size={16} className="mr-2"/>{userDangerAction.label}</p>
+                        <p className="text-xs text-red-700 mt-1">Permanently delete all user profiles. This is the most destructive action and will force all users to sign up again.</p>
+                    </button>
                 </div>
             </div>
 

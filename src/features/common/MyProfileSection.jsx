@@ -18,11 +18,13 @@ const MyProfileSection = ({ user, userData, setUserData, auth, db, showNotificat
     const [districts, setDistricts] = useState([]);
     const [barangays, setBarangays] = useState([]);
 
+    const isCustomer = userData?.role === 'customer';
+
     useEffect(() => {
         setDistricts(geoService.getDistricts());
         if (userData) {
             setProfileDataForm({ ...userData });
-            if (userData.serviceAddress && typeof userData.serviceAddress === 'object') {
+            if (isCustomer && userData.serviceAddress && typeof userData.serviceAddress === 'object') {
                 const currentDistrict = userData.serviceAddress.district || '';
                 setAddressForm(userData.serviceAddress);
                 if (currentDistrict) {
@@ -32,7 +34,7 @@ const MyProfileSection = ({ user, userData, setUserData, auth, db, showNotificat
                 setAddressForm({ district: '', barangay: '', street: '', landmark: '' });
             }
         }
-    }, [userData]);
+    }, [userData, isCustomer]);
     
     const formatAddressToString = (addressObj) => {
         if (!addressObj || typeof addressObj !== 'object') return 'N/A';
@@ -68,7 +70,7 @@ const MyProfileSection = ({ user, userData, setUserData, auth, db, showNotificat
         const dataToUpdateInFirestore = {
             displayName: profileDataForm.displayName.trim(),
             photoURL: profileDataForm.photoURL?.trim() || '',
-            serviceAddress: addressForm,
+            serviceAddress: isCustomer ? addressForm : (userData.serviceAddress || {}),
         };
 
         const firestoreUpdateResult = await DataService.updateUserProfile(db, user.uid, dataToUpdateInFirestore);
@@ -88,7 +90,7 @@ const MyProfileSection = ({ user, userData, setUserData, auth, db, showNotificat
     const handleCancelEdit = () => {
         setIsEditing(false);
         setError('');
-        if (userData.serviceAddress && typeof userData.serviceAddress === 'object') {
+        if (isCustomer && userData.serviceAddress && typeof userData.serviceAddress === 'object') {
             setAddressForm(userData.serviceAddress);
         }
     };
@@ -135,47 +137,51 @@ const MyProfileSection = ({ user, userData, setUserData, auth, db, showNotificat
                         <label className="text-xs font-medium text-gray-600 mb-1 flex items-center"><Mail size={14} className="mr-1.5"/>Email Address</label>
                         <p className={`${commonInputClass} ${commonDisabledClass}`}>{profileDataForm.email}</p>
                     </div>
-                    <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 flex items-center"><Hash size={14} className="mr-1.5"/>Account Number</label>
-                        <p className={`${commonInputClass} ${commonDisabledClass}`}>{profileDataForm.accountNumber}</p>
-                    </div>
+                    {isCustomer && (
+                        <div>
+                            <label className="text-xs font-medium text-gray-600 mb-1 flex items-center"><Hash size={14} className="mr-1.5"/>Account Number</label>
+                            <p className={`${commonInputClass} ${commonDisabledClass}`}>{profileDataForm.accountNumber}</p>
+                        </div>
+                    )}
                     <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 flex items-center"><Briefcase size={14} className="mr-1.5"/>User Role</label>
                         <p className={`${commonInputClass} ${commonDisabledClass} capitalize`}>{profileDataForm.role?.replace('_', ' ')}</p>
                     </div>
                 </div>
 
-                <div className="pt-4 mt-4 border-t">
-                    <h3 className="text-lg font-semibold text-gray-700 mb-2">Service Address</h3>
-                     {isEditing ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-medium text-gray-600 mb-1">District</label>
-                                <select name="district" value={addressForm.district} onChange={handleAddressChange} className={commonInputClass}>
-                                    <option value="">Select District</option>
-                                    {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
+                {isCustomer && (
+                    <div className="pt-4 mt-4 border-t">
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">Service Address</h3>
+                        {isEditing ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-medium text-gray-600 mb-1">District</label>
+                                    <select name="district" value={addressForm.district} onChange={handleAddressChange} className={commonInputClass}>
+                                        <option value="">Select District</option>
+                                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-gray-600 mb-1">Barangay</label>
+                                    <select name="barangay" value={addressForm.barangay} onChange={handleAddressChange} className={commonInputClass} disabled={!addressForm.district}>
+                                        <option value="">Select Barangay</option>
+                                        {barangays.map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-medium text-gray-600 mb-1">Street Name, Building, House No.</label>
+                                    <input type="text" name="street" value={addressForm.street} onChange={handleAddressChange} className={commonInputClass} />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-medium text-gray-600 mb-1">Landmark</label>
+                                    <input type="text" name="landmark" value={addressForm.landmark} onChange={handleAddressChange} className={commonInputClass} />
+                                </div>
                             </div>
-                            <div>
-                                <label className="text-xs font-medium text-gray-600 mb-1">Barangay</label>
-                                <select name="barangay" value={addressForm.barangay} onChange={handleAddressChange} className={commonInputClass} disabled={!addressForm.district}>
-                                    <option value="">Select Barangay</option>
-                                    {barangays.map(b => <option key={b} value={b}>{b}</option>)}
-                                </select>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-medium text-gray-600 mb-1">Street Name, Building, House No.</label>
-                                <input type="text" name="street" value={addressForm.street} onChange={handleAddressChange} className={commonInputClass} />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-medium text-gray-600 mb-1">Landmark</label>
-                                <input type="text" name="landmark" value={addressForm.landmark} onChange={handleAddressChange} className={commonInputClass} />
-                            </div>
-                        </div>
-                    ) : (
-                        <p className={`${commonInputClass} ${commonDisabledClass}`}>{formatAddressToString(profileDataForm.serviceAddress)}</p>
-                    )}
-                </div>
+                        ) : (
+                            <p className={`${commonInputClass} ${commonDisabledClass}`}>{formatAddressToString(profileDataForm.serviceAddress)}</p>
+                        )}
+                    </div>
+                )}
 
                 {isEditing && (
                     <div className="flex justify-end space-x-4 pt-5">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Modal from './Modal';
 import LoadingSpinner from './LoadingSpinner';
 import { Send, Sparkles, MessageSquare, AlertTriangle, FilePlus } from 'lucide-react';
-import { callGeminiAPI } from '../../services/geminiService'; 
+import { getChatbotReply } from '../../services/deepseekService'; 
 
 const ChatbotModal = ({
     isOpen,
@@ -45,18 +45,13 @@ const ChatbotModal = ({
         if (!userInput.trim() || isChatLoading) return;
 
         const newUserMessage = { role: 'user', text: userInput };
-        setChatHistory(prev => [...prev, newUserMessage]);
-        const currentInput = userInput; 
+        const newChatHistory = [...chatHistory, newUserMessage];
+        
+        setChatHistory(newChatHistory);
         setUserInput('');
         setIsChatLoading(true);
         setShowCreateTicketButton(false); 
         setError('');
-
-        const geminiChatContext = chatHistory.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model', 
-            parts: [{ text: msg.text }]
-        }));
-        geminiChatContext.push({role: 'user', parts: [{text: currentInput}]});
 
         try {
             const systemPrompt = `You are Agie, the friendly and professional AI assistant for AGWA Water Services, a major water utility provider in the Philippines.
@@ -79,9 +74,7 @@ Your primary goals are:
 
 Respond to the customer's latest message based on the conversation history.`;
             
-            const fullPromptForGemini = `${systemPrompt}\n\nConversation History:\n${geminiChatContext.slice(0,-1).map(m => `${m.role}: ${m.parts[0].text}`).join("\n")}\n\nNew user message to respond to:\nuser: ${currentInput}`;
-
-            const responseText = await callGeminiAPI(fullPromptForGemini); 
+            const responseText = await getChatbotReply(newChatHistory, systemPrompt); 
 
             if (responseText.includes("WOULD_YOU_LIKE_A_TICKET?")) {
                 const mainResponse = responseText.replace("WOULD_YOU_LIKE_A_TICKET?", "").trim();
@@ -128,7 +121,7 @@ Respond to the customer's latest message based on the conversation history.`;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Chat with Agie - Your AGWA Assistant" size="lg">
-            <style jsx global>{`
+            <style>{`
                 .animate-message-appear {
                     animation: message-appear 0.3s ease-out forwards;
                 }

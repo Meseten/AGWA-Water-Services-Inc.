@@ -20,21 +20,26 @@ const UserEditModal = ({ user, isOpen, onClose, onSave, isSaving, determineServi
     const [addressForm, setAddressForm] = useState({ district: '', barangay: '', street: '', landmark: '' });
     const [districts, setDistricts] = useState([]);
     const [barangays, setBarangays] = useState([]);
+    
+    const isCustomer = (formData.role === 'customer');
 
     useEffect(() => {
         setDistricts(geoService.getDistricts());
         if (user) {
+            const userRole = user.role || 'customer';
+            const isUserCustomer = userRole === 'customer';
+
             setFormData({
                 displayName: user.displayName || '',
                 email: user.email || '',
                 accountNumber: user.accountNumber || '',
                 accountStatus: user.accountStatus || 'Active',
-                role: user.role || 'customer',
+                role: userRole,
                 serviceType: user.serviceType || 'Residential',
                 meterSerialNumber: user.meterSerialNumber || '',
                 meterSize: user.meterSize || '1/2"',
             });
-             if (user.serviceAddress && typeof user.serviceAddress === 'object') {
+             if (isUserCustomer && user.serviceAddress && typeof user.serviceAddress === 'object') {
                 const currentDistrict = user.serviceAddress.district || '';
                 setAddressForm({
                     district: user.serviceAddress.district || '',
@@ -71,12 +76,33 @@ const UserEditModal = ({ user, isOpen, onClose, onSave, isSaving, determineServi
             const { role, serviceType } = determineServiceTypeAndRole(value);
             newFormData = { ...newFormData, role, serviceType };
         }
+        
+        if (name === 'role' && value !== 'customer') {
+            newFormData.accountNumber = '';
+            newFormData.meterSerialNumber = '';
+            newFormData.meterSize = '';
+            const { serviceType } = determineServiceTypeAndRole('');
+            newFormData.serviceType = serviceType;
+            setAddressForm({ district: '', barangay: '', street: '', landmark: '' });
+        }
+        
         setFormData(newFormData);
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave({ ...formData, serviceAddress: addressForm });
+        const dataToSave = { 
+            ...formData, 
+            serviceAddress: isCustomer ? addressForm : {} 
+        };
+        
+        if (!isCustomer) {
+            delete dataToSave.meterSerialNumber;
+            delete dataToSave.meterSize;
+            delete dataToSave.serviceAddress;
+        }
+        
+        onSave(dataToSave);
     };
 
     return (
@@ -85,38 +111,49 @@ const UserEditModal = ({ user, isOpen, onClose, onSave, isSaving, determineServi
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" name="displayName" value={formData.displayName} onChange={handleChange} className={commonInputClass} placeholder="Full Name" />
                     <input type="email" name="email" value={formData.email} className={`${commonInputClass} ${commonDisabledClass}`} disabled />
-                    <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleChange} className={commonInputClass} placeholder="Account Number" />
+                    
+                    <select name="role" value={formData.role} onChange={handleChange} className={`${commonInputClass} capitalize`}>
+                         {['customer', 'admin', 'meter_reader', 'clerk_cashier'].map(opt => <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>)}
+                    </select>
+                    
                     <select name="accountStatus" value={formData.accountStatus} onChange={handleChange} className={commonInputClass}>
                         <option value="Active">Active</option>
                         <option value="Inactive">Inactive</option>
                         <option value="Suspended">Suspended</option>
                     </select>
-                    <select name="role" value={formData.role} onChange={handleChange} className={`${commonInputClass} capitalize`}>
-                         {['customer', 'admin', 'meter_reader', 'clerk_cashier'].map(opt => <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>)}
-                    </select>
+
+                    <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleChange} className={commonInputClass} placeholder="Account Number" disabled={!isCustomer} />
                     <input type="text" name="serviceType" value={formData.serviceType} className={`${commonInputClass} ${commonDisabledClass}`} disabled />
-                    <input type="text" name="meterSerialNumber" value={formData.meterSerialNumber} onChange={handleChange} className={commonInputClass} placeholder="Meter Serial Number" />
-                    <input type="text" name="meterSize" value={formData.meterSize} onChange={handleChange} className={commonInputClass} placeholder="Meter Size" />
+                    
+                    {isCustomer && (
+                        <>
+                            <input type="text" name="meterSerialNumber" value={formData.meterSerialNumber} onChange={handleChange} className={commonInputClass} placeholder="Meter Serial Number" />
+                            <input type="text" name="meterSize" value={formData.meterSize} onChange={handleChange} className={commonInputClass} placeholder="Meter Size" />
+                        </>
+                    )}
                 </div>
-                 <div className="pt-4 mt-4 border-t">
-                    <h3 className="text-md font-semibold text-gray-700 mb-2">Service Address</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <select name="district" value={addressForm.district} onChange={handleAddressChange} className={commonInputClass}>
-                            <option value="">Select District</option>
-                            {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                        <select name="barangay" value={addressForm.barangay} onChange={handleAddressChange} className={commonInputClass} disabled={!addressForm.district}>
-                            <option value="">Select Barangay</option>
-                            {barangays.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                        <div className="md:col-span-2">
-                             <input type="text" name="street" value={addressForm.street} onChange={handleAddressChange} className={commonInputClass} placeholder="Street Name, Building, House No." />
-                        </div>
-                        <div className="md:col-span-2">
-                             <input type="text" name="landmark" value={addressForm.landmark} onChange={handleAddressChange} className={commonInputClass} placeholder="Landmark" />
+                
+                 {isCustomer && (
+                     <div className="pt-4 mt-4 border-t">
+                        <h3 className="text-md font-semibold text-gray-700 mb-2">Service Address</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <select name="district" value={addressForm.district} onChange={handleAddressChange} className={commonInputClass}>
+                                <option value="">Select District</option>
+                                {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                            <select name="barangay" value={addressForm.barangay} onChange={handleAddressChange} className={commonInputClass} disabled={!addressForm.district}>
+                                <option value="">Select Barangay</option>
+                                {barangays.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                            <div className="md:col-span-2">
+                                <input type="text" name="street" value={addressForm.street} onChange={handleAddressChange} className={commonInputClass} placeholder="Street Name, Building, House No." />
+                            </div>
+                            <div className="md:col-span-2">
+                                <input type="text" name="landmark" value={addressForm.landmark} onChange={handleAddressChange} className={commonInputClass} placeholder="Landmark" />
+                            </div>
                         </div>
                     </div>
-                </div>
+                 )}
 
                 <div className="pt-4 flex justify-end space-x-3">
                     <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg border" disabled={isSaving}>Cancel</button>

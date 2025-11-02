@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, MessageCircle, MapPin, Sparkles, Send, Loader2, ListChecks } from 'lucide-react';
-import { callGeminiAPI } from '../../services/geminiService.js';
+import { callDeepseekAPI } from '../../services/deepseekService.js';
 import * as DataService from '../../services/dataService.js';
 import useForm from '../../hooks/useForm.js';
 import Tooltip from '../../components/ui/Tooltip.jsx';
@@ -8,11 +8,25 @@ import Tooltip from '../../components/ui/Tooltip.jsx';
 const commonInputClass = "w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none transition duration-150 text-sm placeholder-gray-400";
 const commonButtonClass = "flex items-center justify-center px-5 py-2.5 rounded-lg font-semibold transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-opacity-50 disabled:opacity-60 active:scale-95 text-sm";
 
+const formatAddressToString = (addressObj) => {
+    if (!addressObj || typeof addressObj !== 'object') return '';
+    const parts = [addressObj.street, addressObj.barangay, addressObj.district];
+    return parts.filter(p => p && p.trim()).join(', ');
+};
+
 const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
+    
+    const getInitialAddress = () => {
+        if (userData?.serviceAddress && typeof userData.serviceAddress === 'object') {
+            return formatAddressToString(userData.serviceAddress);
+        }
+        return userData?.accountNumber || '';
+    };
+
     const initialFormValues = {
         issueType: '',
         description: '',
-        issueAddress: userData?.serviceAddress || userData?.accountNumber || '',
+        issueAddress: getInitialAddress(),
     };
     
     const [isAiCategorizing, setIsAiCategorizing] = useState(false);
@@ -75,6 +89,10 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
         }
          setFieldValue('issueType', '');
     }, [userData.role, setFieldValue]);
+    
+    useEffect(() => {
+        setFieldValue('issueAddress', getInitialAddress());
+    }, [userData, setFieldValue]);
 
     const handleAiCategorize = async () => {
         if (!values.description.trim()) {
@@ -85,8 +103,11 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
         try {
             const categories = availableIssueTypes.join(', ');
             const prompt = `Based on the following user complaint, which of these categories does it best fit into? Categories: [${categories}]. Respond with only the exact category name from the list and nothing else. Complaint: "${values.description}"`;
-            let category = await callGeminiAPI(prompt);
-            category = category.replace(/["'.]/g, "").trim(); 
+            
+            const messages = [{ role: 'user', content: prompt }];
+            let category = await callDeepseekAPI(messages);
+            
+            category = category.replace(/["'.*]/g, "").trim(); 
 
             if (availableIssueTypes.includes(category)) {
                 setFieldValue('issueType', category);
@@ -95,7 +116,8 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
                 showNotification("AI could not determine a matching category. Please select one manually.", "info");
             }
         } catch (error) {
-            showNotification(error.message || "AI categorization failed.", "error");
+            const errorMessage = error?.message || "AI categorization failed.";
+            showNotification(errorMessage, "error");
         } finally {
             setIsAiCategorizing(false);
         }
@@ -109,11 +131,15 @@ const ReportIssueSection = ({ user, userData, db, auth, showNotification }) => {
         setIsAiAssisting(true);
         try {
             const prompt = `You are helping a user report an issue to AGWA Water Services. Elaborate on the following user-provided details to create a clear, detailed, and formal issue description. Be polite and include any relevant questions the user might need to answer. Do not add any extra commentary, just provide the refined description.\n\nUser's input: "${values.description}"`;
-            const assistedDescription = await callGeminiAPI(prompt);
+            
+            const messages = [{ role: 'user', content: prompt }];
+            const assistedDescription = await callDeepseekAPI(messages);
+            
             setFieldValue('description', assistedDescription);
             showNotification("AI has helped draft your issue description!", "success");
         } catch (error) {
-            showNotification(error.message || "AI assistance failed.", "error");
+            const errorMessage = error?.message || "AI assistance failed.";
+            showNotification(errorMessage, "error");
         } finally {
             setIsAiAssisting(false);
         }

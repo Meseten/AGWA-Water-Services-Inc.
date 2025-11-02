@@ -1,19 +1,7 @@
-
-export const APP_ID_FOR_FIRESTORE_PATHS = 'c_0e480e34ffaa3f81_agwa_water_services_app-268';
-
-export const getAppId = () => {
-    if (typeof __app_id !== 'undefined' && __app_id !== null && __app_id !== '') {
-        return __app_id;
-    }
-    return APP_ID_FOR_FIRESTORE_PATHS;
-};
-
-const appId = getAppId();
-
-export const usersCollectionPath = () => `artifacts/${appId}/users`;
+export const usersCollectionPath = () => `users`;
 export const userProfileDocumentPath = (userId) => `${usersCollectionPath()}/${userId}/profile/data`;
 
-export const publicDataCollectionPath = () => `artifacts/${appId}/public/data`;
+export const publicDataCollectionPath = () => `public/data`;
 export const profilesCollectionPath = () => `${publicDataCollectionPath()}/profiles`;
 export const supportTicketsCollectionPath = () => `${publicDataCollectionPath()}/support_tickets`;
 export const supportTicketDocumentPath = (ticketId) => `${supportTicketsCollectionPath()}/${ticketId}`;
@@ -25,3 +13,5 @@ export const allBillDocumentPath = (billId) => `${allBillsCollectionPath()}/${bi
 export const allMeterReadingsCollectionPath = () => `${publicDataCollectionPath()}/all_meter_readings`;
 export const allMeterReadingDocumentPath = (readingId) => `${allMeterReadingsCollectionPath()}/${readingId}`;
 export const meterRoutesCollectionPath = () => `${publicDataCollectionPath()}/meter_routes`;
+export const serviceInterruptionsCollectionPath = () => `${publicDataCollectionPath()}/service_interruptions`;
+export const serviceInterruptionDocumentPath = (id) => `${serviceInterruptionsCollectionPath()}/${id}`;

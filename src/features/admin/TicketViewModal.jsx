@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from '../../components/ui/Modal.jsx';
-import { 
-    MessageSquare, UserCircle, Hash, Mail, CalendarDays, Edit, Save, Loader2, 
-    AlertTriangle, CheckSquare, FilePlus, Send, X, ShieldAlert, Info, Clock,
-    DollarSign, Droplets, Gauge, UserCog, MapPin, Sparkles
+import {
+    MessageSquare, UserCircle, Hash, Mail, CalendarDays, Save, Loader2,
+    AlertTriangle, Send, X, Sparkles, Clock
 } from 'lucide-react';
 import { formatDate } from '../../utils/userUtils.js';
 import * as DataService from '../../services/dataService.js';
 import { Timestamp } from 'firebase/firestore';
-import { callGeminiAPI } from '../../services/geminiService.js';
+import { refineSupportTicketReply } from '../../services/deepseekService.js';
+import RichTextEditor from '../../components/ui/RichTextEditor.jsx';
+import DOMPurify from 'dompurify';
 
 const TicketViewModal = ({
     isOpen,
@@ -31,13 +32,14 @@ const TicketViewModal = ({
         if (ticket) {
             setCurrentTicket(ticket);
             setNewStatus(ticket.status || 'Open');
+            setReplyText('');
         } else {
             setCurrentTicket(null);
         }
     }, [ticket]);
 
     useEffect(() => {
-        conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        conversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, [currentTicket?.conversation]);
 
     if (!isOpen || !currentTicket) return null;
@@ -47,7 +49,7 @@ const TicketViewModal = ({
 
     const handleStatusUpdate = async () => {
         if (!newStatus || newStatus === currentTicket.status) {
-            showNotification("Please select a new status or status is unchanged.", "info");
+            showNotification("Status is unchanged or invalid.", "info");
             return;
         }
         setIsUpdatingStatus(true);
@@ -58,36 +60,44 @@ const TicketViewModal = ({
         };
         const result = await DataService.updateSupportTicket(db, currentTicket.id, updates);
         if (result.success) {
-            showNotification("Ticket status updated successfully!", "success");
-            const updatedTicketData = { ...currentTicket, ...updates, status: newStatus, lastUpdatedAt: new Date() };
+            showNotification("Ticket status updated!", "success");
+            const updatedTicketData = { ...currentTicket, ...updates, status: newStatus, lastUpdatedAt: Timestamp.now() };
             setCurrentTicket(updatedTicketData);
             if (onTicketUpdate) onTicketUpdate(updatedTicketData);
         } else {
-            showNotification(result.error || "Failed to update ticket status.", "error");
+            showNotification(result.error || "Failed to update status.", "error");
         }
         setIsUpdatingStatus(false);
     };
 
+     const handleReplyChange = (value) => {
+        setReplyText(value);
+    };
+
     const handleSendReply = async () => {
-        if (!replyText.trim()) {
+        const plainTextReply = replyText.replace(/<[^>]*>?/gm, '').trim();
+        if (!plainTextReply) {
             showNotification("Reply cannot be empty.", "warning");
             return;
         }
         setIsSendingReply(true);
+        const sanitizedHtmlReply = DOMPurify.sanitize(replyText);
         const replyData = {
-            text: replyText,
+            text: sanitizedHtmlReply,
             authorId: adminUserData.uid,
-            authorName: adminUserData.displayName,
-            authorRole: adminUserData.role,
-            timestamp: Timestamp.fromDate(new Date()),
+            authorName: adminUserData.displayName || 'Admin',
+            authorRole: adminUserData.role || 'admin',
+            timestamp: Timestamp.now(),
         };
 
         const result = await DataService.addTicketReply(db, currentTicket.id, replyData);
 
         if (result.success) {
-            showNotification("Reply sent successfully!", "success");
+            showNotification("Reply sent!", "success");
             const newConversation = [...(currentTicket.conversation || []), replyData];
-            const updatedTicketData = { ...currentTicket, conversation: newConversation, lastUpdatedAt: new Date(), status: 'In Progress' };
+            const autoUpdateStatus = (newStatus === 'Open' || newStatus === 'Awaiting Customer') ? 'In Progress' : newStatus;
+            const updatedTicketData = { ...currentTicket, conversation: newConversation, lastUpdatedAt: Timestamp.now(), status: autoUpdateStatus };
+            if (autoUpdateStatus !== newStatus) setNewStatus(autoUpdateStatus);
             setCurrentTicket(updatedTicketData);
             if (onTicketUpdate) onTicketUpdate(updatedTicketData);
             setReplyText('');
@@ -98,29 +108,25 @@ const TicketViewModal = ({
     };
 
     const handleAiAssist = async () => {
-        if (!replyText.trim()) {
-            showNotification("Please write a draft or some keywords for the AI to assist with.", "warning");
+        const plainTextForAI = replyText.replace(/<[^>]*>?/gm, '').trim();
+        if (!plainTextForAI) {
+            showNotification("Write a draft or keywords first.", "warning");
             return;
         }
         setIsAiAssisting(true);
         try {
-            const conversationHistory = (currentTicket.conversation || []).map(msg => `${msg.authorRole}: ${msg.text}`).join('\n');
-            const prompt = `
-                You are a professional and empathetic customer support agent for AGWA Water Services.
-                A customer has filed a support ticket.
-                Ticket Description: "${currentTicket.description}"
-                Conversation History so far:
-                ${conversationHistory}
-                
-                My draft reply is: "${replyText}"
-
-                Please refine my draft into a formal, clear, and helpful response. Address the customer by name if possible (${currentTicket.userName}). Maintain a polite and professional tone. Do not add any extra commentary, just provide the refined reply.
-            `;
-            const assistedReply = await callGeminiAPI(prompt);
+            const conversationHistory = (currentTicket.conversation || []).map(msg => `${msg.authorRole === 'admin' ? 'Support' : 'Customer'}: ${msg.text.replace(/<[^>]*>?/gm, '')}`).join('\n\n');
+            const assistedReply = await refineSupportTicketReply({
+                ticketDescription: currentTicket.description,
+                conversationHistory: conversationHistory,
+                draftReply: plainTextForAI,
+                customerName: currentTicket.userName
+            });
             setReplyText(assistedReply);
-            showNotification("AI has refined your reply!", "success");
+            showNotification("AI refined your reply.", "success");
         } catch (error) {
-            showNotification(error.message || "AI assistance failed.", "error");
+            const errorMessage = error?.message || "AI assistance failed.";
+            showNotification(errorMessage, "error");
         } finally {
             setIsAiAssisting(false);
         }
@@ -132,25 +138,26 @@ const TicketViewModal = ({
                 {Icon && <Icon size={14} className="mr-2 text-slate-400" />}
                 {label}:
             </span>
-            <span className={`text-sm ${valueClass} flex-1`}>{value || 'N/A'}</span>
+            <span className={`text-sm ${valueClass} flex-1 break-words`}>{value || 'N/A'}</span>
         </div>
     );
-    
+
     const getStatusPillClass = (status) => {
         switch (status) {
             case 'Open': return 'bg-red-100 text-red-700';
             case 'In Progress': return 'bg-yellow-100 text-yellow-700';
             case 'Resolved': return 'bg-green-100 text-green-700';
             case 'Closed': return 'bg-purple-100 text-purple-700';
+            case 'Awaiting Customer': return 'bg-blue-100 text-blue-700';
             default: return 'bg-gray-100 text-gray-600';
         }
     };
-    const ticketStatusOptions = ['Open', 'In Progress', 'Resolved', 'Closed'];
+    const ticketStatusOptions = ['Open', 'In Progress', 'Awaiting Customer', 'Resolved', 'Closed'];
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Ticket Details`} size="full" modalDialogClassName="sm:max-w-4xl w-[95vw] h-[95vh]" contentClassName="p-0 flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-slate-50 rounded-t-xl sticky top-0 z-10">
-                <h3 className="text-lg font-semibold text-slate-800 truncate" title={currentTicket.issueType}>{currentTicket.issueType}</h3>
+                <h3 className="text-lg font-semibold text-slate-800 truncate" title={currentTicket.issueType}>{currentTicket.issueType} - ID: {currentTicket.id.substring(0, 8)}...</h3>
                 <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-700 rounded-lg"><X size={18} /></button>
             </div>
 
@@ -162,13 +169,14 @@ const TicketViewModal = ({
                         <InfoRow label="Submitted" value={formatDate(currentTicket.submittedAt)} icon={CalendarDays} />
                         <InfoRow label="Last Update" value={formatDate(currentTicket.lastUpdatedAt)} icon={Clock} />
                         <InfoRow label="Status" value={<span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusPillClass(currentTicket.status)}`}>{currentTicket.status}</span>} icon={AlertTriangle} />
+                         <InfoRow label="Ticket ID" value={currentTicket.id} icon={Hash} valueClass="font-mono text-xs"/>
                     </div>
                 </div>
 
                 <div className="p-4 border rounded-lg bg-white">
                     <h4 className="text-sm font-semibold text-slate-600 mb-1">Initial Description:</h4>
-                    <div className="p-3 bg-slate-100 rounded-md text-sm text-slate-800 whitespace-pre-line">
-                        {currentTicket.description}
+                    <div className="p-3 bg-slate-100 rounded-md text-sm text-slate-800 whitespace-pre-line prose prose-sm max-w-none">
+                         {currentTicket.description}
                     </div>
                 </div>
 
@@ -177,8 +185,8 @@ const TicketViewModal = ({
                     <div className="max-h-60 overflow-y-auto space-y-3 p-3 bg-slate-50 border rounded-md">
                         {currentTicket.conversation && currentTicket.conversation.length > 0 ? currentTicket.conversation.map((msg, index) => (
                             <div key={index} className={`p-2.5 rounded-lg ${msg.authorRole === 'admin' ? 'bg-blue-100' : 'bg-green-50'}`}>
-                                <p className="text-xs font-bold text-gray-800">{msg.authorName}</p>
-                                <p className="text-sm text-gray-700 whitespace-pre-line">{msg.text}</p>
+                                <p className="text-xs font-bold text-gray-800">{msg.authorName} ({msg.authorRole})</p>
+                                <div className="text-sm text-gray-700 prose prose-sm max-w-none break-words" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.text || '') }}></div>
                                 <p className="text-right text-xs text-gray-500 mt-1">{formatDate(msg.timestamp)}</p>
                             </div>
                         )) : <p className="text-sm text-center text-gray-500 py-4">No replies yet.</p>}
@@ -188,20 +196,19 @@ const TicketViewModal = ({
 
                 <div className="p-4 border rounded-lg bg-white">
                     <h4 className="text-sm font-semibold text-slate-600 mb-2">Send Reply</h4>
-                    <div className="flex items-center gap-2 mb-2">
-                         <textarea
+                    <div className="flex items-start gap-2 mb-2">
+                         <RichTextEditor
                             value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            placeholder="Type your reply to the customer..."
-                            className={`${commonInputClass} flex-grow`}
-                            rows="3"
-                            disabled={isSendingReply || isAiAssisting}
+                            onChange={handleReplyChange}
+                            placeholder="Type your reply..."
+                            className="flex-grow bg-white rounded-lg border border-gray-300 min-h-[120px]"
+                            readOnly={isSendingReply || isAiAssisting}
                         />
-                         <button onClick={handleAiAssist} className={`${commonButtonClass} bg-purple-100 text-purple-700 hover:bg-purple-200 self-start`} disabled={isAiAssisting || !replyText.trim()} title="Refine reply with AI">
+                         <button onClick={handleAiAssist} className={`${commonButtonClass} bg-purple-100 text-purple-700 hover:bg-purple-200 self-start p-2`} disabled={isAiAssisting || !replyText.replace(/<[^>]*>?/gm, '').trim()} title="Refine reply with AI">
                             {isAiAssisting ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                         </button>
                     </div>
-                    <button onClick={handleSendReply} className={`${commonButtonClass} bg-blue-600 hover:bg-blue-700 text-white`} disabled={isSendingReply || !replyText.trim()}>
+                    <button onClick={handleSendReply} className={`${commonButtonClass} bg-blue-600 hover:bg-blue-700 text-white`} disabled={isSendingReply || !replyText.replace(/<[^>]*>?/gm, '').trim()}>
                         {isSendingReply ? <Loader2 size={18} className="animate-spin mr-2" /> : <Send size={16} className="mr-2" />}
                         Send Reply
                     </button>

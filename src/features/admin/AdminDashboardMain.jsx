@@ -33,7 +33,8 @@ const AdminDashboardMain = ({ user, userData, db, showNotification, setActiveSec
                 partialErrorAccumulator += "Users data unavailable. ";
             }
             if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
-                newStats.openTickets = ticketsResult.value.data.open;
+                // This is the fix: Read from data.byStatus.Open
+                newStats.openTickets = ticketsResult.value.data.byStatus.Open || 0;
             } else {
                 partialErrorAccumulator += "Tickets data unavailable. ";
             }
@@ -93,7 +94,7 @@ const AdminDashboardMain = ({ user, userData, db, showNotification, setActiveSec
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 <DashboardInfoCard title="Total Users" value={dashboardStats.totalUsers ?? 'N/A'} icon={Users} borderColor="border-blue-500" iconColor="text-blue-500" onClick={() => setActiveSection('userManagement')} />
-                <DashboardInfoCard title="Open Support Tickets" value={dashboardStats.openTickets ?? 'N/A'} icon={AlertTriangle} borderColor="border-red-500" iconColor="text-red-500" onClick={() => setActiveSection('supportTickets')} />
+                <DashboardInfoCard title="Open Support Tickets" value={dashboardStats.openTickets} icon={AlertTriangle} borderColor="border-red-500" iconColor="text-red-500" onClick={() => setActiveSection('supportTickets')} />
                 <DashboardInfoCard title="Active Announcements" value={dashboardStats.activeAnnouncements ?? 'N/A'} icon={Megaphone} borderColor="border-teal-500" iconColor="text-teal-500" onClick={() => setActiveSection('viewAnnouncements')}/>
                 <DashboardInfoCard title="System Status" value={dashboardStats.systemStatus} icon={ShieldCheck} borderColor={dashboardStats.systemStatus === 'Error' ? "border-red-500" : "border-green-500"} iconColor={dashboardStats.systemStatus === 'Error' ? "text-red-500" : "text-green-500"} />
             </div>
